@@ -8,6 +8,8 @@
 #include "../common/string_constants.h"
 #include "../common/tokenizer.h"
 #include "../common/resque_constants.h"
+#include "../common/spatialproc_structs.h"
+#include "../common/spatialproc_params.h"
 #include "../common/rtree_traversal.h"
 #include "../extensions/specialmeasures/pathology_metrics.h"
 #include "../extensions/specialmeasures/geographical.h"
@@ -33,89 +35,6 @@
  * */
 
 
-
-/* Placeholder for nearest neighbor ranks */
-struct query_nn_dist {
-	int object_id;
-	double distance;
-} query_nn_dist;
-
-
-/* Struct to hold temporary values */
-struct query_temp {
-	double area1;
-	double area2;
-	double union_area;
-	double intersect_area;
-	double dice;
-	double jaccard;
-	double distance;
-
-	std::stringstream stream;
-	std::string tile_id;
-
-	/* Bucket information */
-	double bucket_min_x;
-	double bucket_min_y;
-	double bucket_max_x;
-	double bucket_max_y;
-
-	/* Data current to the tile/bucket */
-	std::map<int, std::vector< std::vector<string> > > rawdata;
-	std::map<int, std::vector<Geometry*> > polydata;
-
-	/* Nearest neighbor temporary placeholders */
-	list<struct query_nn_dist *> nearest_distances;
-} sttemp;
-
-
-
-/* Query operator */
-struct query_op {
-	bool use_cache_file;
-	string cachefilename;
-
-	int JOIN_PREDICATE; /* Join predicate - see resquecommon.h for the full list*/
-	int shape_idx_1; /* geometry field number of the 1st set */
-	int shape_idx_2; /* geometry field number of the 2nd set */
-	int join_cardinality; /* Join cardinality */
-	double expansion_distance; /* Distance used in dwithin and k-nearest query */
-	int k_neighbors; /* k - the number of neighbors used in k-nearest neighbor */
-	/* the number of additional meta data fields
-	 i.e. those first fields not counting towards object data
-	*/
-	int offset; // offset/adjustment for meta data field
-
-	int sid_second_set; // set id for the "second" dataset.
-	// Value == 2 for joins between 2 data sets
-	// Value == 1 for selfjoin
-
-	vector<int> proj1; /* Output fields for 1st set  */
-	vector<int> proj2; /* Output fields for 2nd set */
-
-	/* Output fields -  parallel arrays/lists */
-	vector<int> output_fields; // fields to the output
-	// e.g. 1 is field #1, 2 is fiend #2, the dataset they belong to 
-	// is stored in corresponding position 
-	//in the the output_fields_set_id list 
-	vector<int> output_fields_set_id; // meta information to indicate fields to output
-
-	/* Indicate whether symmetric result pair should be included or not */	
-	bool result_pair_duplicate;
-
-	/* Indicate whether to use the geographical distance for points on earth */
-	bool use_earth_distance;
-
-	/* Special bits to indicate whether statistics/fields to compute */
-	bool needs_area_1;
-	bool needs_area_2;
-	bool needs_union;
-	bool needs_intersect;
-	bool needs_dice;
-	bool needs_jaccard;
-	bool needs_min_distance;
-} stop;
-
 /* Performance metrics */
 clock_t start_reading_data;
 clock_t start_query_exec;
@@ -129,23 +48,27 @@ void print_stop();
 int join_bucket();
 int execute_query();
 void read_cache_file();
-int get_join_predicate(char * predicate_str);
 void release_mem(int maxCard);
-void set_projection_param(char * arg);
-bool extract_params(int argc, char** argv );
 void report_result(int i, int j);
 void obtain_field(int position, int pos1, int pos2);
 void update_nn(int object_id, double distance);
 void update_bucket_dimension(const Envelope * env);
 double get_distance(const geos::geom::Point* p1, const geos::geom::Point* p2);
 double get_distance_earth(const geos::geom::Point* p1,const geos::geom::Point* p2);
+bool build_index_geoms(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spidx, IStorageManager* & storage);
 
 /* Externed function from other files */
+extern void set_projection_param(char * arg);
+extern bool extract_params(int argc, char** argv );
+extern int get_join_predicate(char * predicate_str);
+
 extern double compute_jaccard(double union_area, double intersection_area);
 extern double compute_dice(double area1, double area2, double intersection_area);
 extern double to_radians(double degrees);
 extern double earth_distance(double lat1, double lng1, double lat2, double lng2);
 
+
+/* Initialize default values in query structs (operator and temporary placeholders) */
 void init(){
 	stop.use_cache_file = false;
 	// initlize query operator 
@@ -156,6 +79,9 @@ void init(){
 	stop.shape_idx_2 = 0 ;
 	stop.join_cardinality = 0;
 	stop.offset = 3; // default format or value for offset
+
+	stop.prefix_1 = NULL;
+	stop.prefix_2 = NULL;
 
 	stop.needs_area_1 = false;
 	stop.needs_area_2 = false;
@@ -361,7 +287,7 @@ void read_cache_file() {
 }
 
 /* Create an R-tree index on a given set of polygons */
-bool buildIndex(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spidx, IStorageManager* & storage) {
+bool build_index_geoms(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spidx, IStorageManager* & storage) {
 	// build spatial index on tile boundaries 
 	id_type  indexIdentifier;
 	GEOSDataStream stream(&geom_polygons);
@@ -589,147 +515,6 @@ void update_nn(int object_id, double distance)
 	}
 }
 
-/* Set fields to be output */
-void set_projection_param(char * arg)
-{
-	string param(arg);
-	vector<string> fields;
-	vector<string> selec;
-	tokenize(param, fields, STR_OUTPUT_DELIM);
-	int set_id = 0;
-
-	for (int i = 0; i < fields.size(); i++) {
-		string stat_param = fields[i];
-		/* Check if the current field is one of the existing field in the 
-		data set and collect its set id */
-
-		tokenize(stat_param, selec, STR_SET_DELIM);
-		if (selec.size() == 1) {
-			// Special statistics below (no set delimiter/colon was found)	
-
-			// Output cannot be taken directly from the original field
-			stop.output_fields_set_id.push_back(SID_NEUTRAL);
-
-			// Updating output_fields
-			if (stat_param.compare(PARAM_STATS_TILE_ID) == 0 ) {
-				stop.output_fields.push_back(STATS_TILE_ID);
-			}
-			else if (stat_param.compare(PARAM_STATS_AREA_1) == 0 ) {
-				stop.output_fields.push_back(STATS_AREA_1);
-				stop.needs_area_1 = true;
-			}
-			else if (stat_param.compare(PARAM_STATS_AREA_2) == 0) {
-				stop.output_fields.push_back(STATS_AREA_2);
-				stop.needs_area_2 = true;
-			}
-			else if (stat_param.compare(PARAM_STATS_UNION_AREA) == 0) {
-				stop.output_fields.push_back(STATS_UNION_AREA);
-				stop.needs_union = true;
-			}
-			else if (stat_param.compare(PARAM_STATS_INTERSECT_AREA) == 0) {
-				stop.output_fields.push_back(STATS_INTERSECT_AREA);
-				stop.needs_intersect = true;
-			}
-			else if (stat_param.compare(PARAM_STATS_JACCARD_COEF ) == 0) {
-				stop.output_fields.push_back(STATS_JACCARD_COEF);
-				stop.needs_jaccard = true;
-			}
-			else if (stat_param.compare(PARAM_STATS_DICE_COEF) == 0) {	
-				stop.output_fields.push_back(STATS_DICE_COEF);
-				stop.needs_dice = true;
-			} 
-			else if (stat_param.compare(PARAM_STATS_MIN_DIST) == 0) {	
-				stop.output_fields.push_back(STATS_MIN_DIST);
-				stop.needs_min_distance = true;
-			} 
-
-			else {
-				#ifdef DEBUG
-				cerr << "Unrecognizeable option for output statistics" << endl;
-				#endif
-			}
-		}
-		else {
-			// Colon/Set delimiter was found
-			// Regular original field
-			set_id = atoi(selec[0].c_str());
-			switch (set_id) {
-				case SID_1:
-				case SID_2:
-					stop.output_fields_set_id.push_back(set_id);
-					stop.output_fields.push_back(atoi(selec[1].c_str()) - 1 + stop.offset);
-					break;
-				default :
-					#ifdef DEBUG
-					cerr << "Unrecognizeable set ID for output statistics ID" << endl;
-					#endif
-					break;
-			}
-		}
-		selec.clear();
-	}
-
-	// Dependency adjustment
-	if (stop.needs_jaccard) {
-		stop.needs_intersect = true;
-		stop.needs_union = true;
-	}
-
-	if (stop.needs_dice) {
-		stop.needs_intersect = true;
-		stop.needs_area_1 = true;
-		stop.needs_area_2 = true;
-	}
-}
-
-
-int get_join_predicate(char * predicate_str)
-{
-	if (strcmp(predicate_str, PARAM_PREDICATE_INTERSECTS.c_str()) == 0) {
-		return ST_INTERSECTS ; 
-	} 
-	else if (strcmp(predicate_str, PARAM_PREDICATE_TOUCHES.c_str()) == 0) {
-		return ST_TOUCHES;
-	} 
-	else if (strcmp(predicate_str, PARAM_PREDICATE_CROSSES.c_str()) == 0) {
-		return ST_CROSSES;
-	} 
-	else if (strcmp(predicate_str, PARAM_PREDICATE_CONTAINS.c_str()) == 0) {
-		return ST_CONTAINS;
-	} 
-	else if (strcmp(predicate_str, PARAM_PREDICATE_ADJACENT.c_str()) == 0) {
-		return ST_ADJACENT;
-	} 
-	else if (strcmp(predicate_str, PARAM_PREDICATE_DISJOINT.c_str()) == 0) {
-		return ST_DISJOINT;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_EQUALS.c_str()) == 0) {
-		return ST_EQUALS;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_DWITHIN.c_str()) == 0) {
-		return ST_DWITHIN;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_WITHIN.c_str()) == 0) {
-		return ST_WITHIN;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_OVERLAPS.c_str()) == 0) {
-		return ST_OVERLAPS;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_NEAREST.c_str()) == 0) {
-		return ST_NEAREST;
-	}
-	else if (strcmp(predicate_str, PARAM_PREDICATE_NEAREST_NO_BOUND.c_str()) == 0) {
-		return ST_NEAREST_2;
-	}
-	else {
-		#ifdef DEBUG
-		cerr << "unrecognized join predicate " << endl;
-		#endif
-		return -1;
-	}
-}
-
-
 /* Report result separated by separator */
 void report_result(int i, int j)
 {
@@ -893,13 +678,14 @@ int join_bucket()
 		}
 
 		// build the actual spatial index for input polygons from idx2
-		bool ret = buildIndex(geom_polygons2, spidx, storage);
-		if (ret == false) {
+		if (! build_index_geoms(geom_polygons2, spidx, storage)) {
+			#ifdef DEBUG
+			cerr << "Building index on geometries from set 2 has failed" << endl;
+			#endif
 			return -1;
 		}
 
 		for (int i = 0; i < len1; i++) {		
-
 			/* Extract minimum bounding box */
 			const Geometry* geom1 = poly_set_one[i];
 			const Envelope * env1 = geom1->getEnvelopeInternal();
@@ -926,9 +712,8 @@ int join_bucket()
 
 			/* Regular handling */
 			Region r(low, high, 2);
-			hits.clear();
-			vector<id_type> matches;
-			MyVisitor vis(&matches);
+			MyVisitor vis;
+			vis.matches.clear();
 			/* R-tree intersection check */
 			spidx->intersectsWithQuery(r, vis);
 
@@ -936,10 +721,10 @@ int join_bucket()
 			if (stop.JOIN_PREDICATE == ST_NEAREST_2) {
 				double search_radius = def_search_radius;
 				
-				hits.clear();
 				sttemp.nearest_distances.clear();
-				while (hits.size() <= stop.k_neighbors + 1
-					&& hits.size() <= len2 // there can't be more neighbors than number of objects in the bucket
+
+				while (vis.matches.size() <= stop.k_neighbors + 1
+					&& vis.matches.size() <= len2 // there can't be more neighbors than number of objects in the bucket
 					&& search_radius <= sqrt(2) * max_search_radius) {
 					// Increase the radius to find more neighbors
 					// Stopping criteria when there are not enough neighbors in a tile
@@ -947,54 +732,53 @@ int join_bucket()
 					low[1] = env1->getMinY() - search_radius;
 					high[0] = env1->getMaxX() + search_radius;
 					high[1] = env1->getMaxY() + search_radius;
-					hits.clear();
 					
-
 					Region r2(low, high, 2);
-					MyVisitor vistmp;
 					
-					spidx->intersectsWithQuery(r2, vistmp);
+					vis.matches.clear();
+					spidx->intersectsWithQuery(r2, vis);
+
 					#ifdef DEBUG
-					cerr << "Search radius:" << search_radius << " hits: " << hits.size() << endl;
+					cerr << "Search radius:" << search_radius << " hits: " << vis.matches.size() << endl;
 					#endif
 					search_radius *= sqrt(2);
 				}
 			}
 			
-			for (uint32_t j = 0; j < hits.size(); j++) 
+			for (uint32_t j = 0; j < vis.matches.size(); j++) 
 			{
 				/* Skip results that have been seen before (self-join case) */
-				if (selfjoin && ((hits[j] == i) ||  // same objects in self-join
-				    (!stop.result_pair_duplicate && hits[j] <= i))) { // duplicate pairs
+				if (selfjoin && ((vis.matches[j] == i) ||  // same objects in self-join
+				    (!stop.result_pair_duplicate && vis.matches[j] <= i))) { // duplicate pairs
 					#ifdef DEBUG
-					cerr << "skipping (selfjoin): " << j << " " << hits[j] << endl;
+					cerr << "skipping (selfjoin): " << j << " " << vis.matches[j] << endl;
 					#endif
 					continue;
 				}
 				
-				const Geometry* geom2 = poly_set_two[hits[j]];
+				const Geometry* geom2 = poly_set_two[vis.matches[j]];
 				const Envelope * env2 = geom2->getEnvelopeInternal();
 
 				if (stop.JOIN_PREDICATE == ST_NEAREST 
-					&& (!selfjoin || hits[j] != i)) { // remove selfjoin candidates
+					&& (!selfjoin || vis.matches[j] != i)) { // remove selfjoin candidates
 					/* Handle nearest neighbor candidate */	
 					tmp_distance = DistanceOp::distance(geom1, geom2);
 					if (tmp_distance < stop.expansion_distance) {
-						update_nn(hits[j], tmp_distance);
+						update_nn(vis.matches[j], tmp_distance);
 					}
 					
 				}
 				else if (stop.JOIN_PREDICATE == ST_NEAREST_2 
-					&& (!selfjoin || hits[j] != i)) {
+					&& (!selfjoin || vis.matches[j] != i)) {
 					tmp_distance = DistanceOp::distance(geom1, geom2);
-					update_nn(hits[j], tmp_distance);
-	//				cerr << "updating: " << hits[j] << " " << tmp_distance << endl;
+					update_nn(vis.matches[j], tmp_distance);
+	//				cerr << "updating: " << vis.matches[j] << " " << tmp_distance << endl;
 				}
 				else if (stop.JOIN_PREDICATE != ST_NEAREST 
 					&& stop.JOIN_PREDICATE != ST_NEAREST_2
 					&& join_with_predicate(geom1, geom2, env1, env2,
 							stop.JOIN_PREDICATE))  {
-					report_result(i, hits[j]);
+					report_result(i, vis.matches[j]);
 					pairs++;
 				}
 
@@ -1015,8 +799,8 @@ int join_bucket()
 	
 		}
 	} // end of try
-	//catch (Tools::Exception& e) {
-	catch (...) {
+	catch (Tools::Exception& e) {
+	//catch (...) {
 		std::cerr << "******ERROR******" << std::endl;
 		#ifdef DEBUG
 		cerr << e.what() << std::endl;
@@ -1027,167 +811,6 @@ int join_bucket()
 	delete spidx;
 	delete storage;
 	return pairs ;
-}
-
-bool extract_params(int argc, char** argv ){ 
-	/* getopt_long stores the option index here. */
-	int option_index = 0;
-	/* getopt_long uses opterr to report error*/
-	opterr = 0 ;
-	struct option long_options[] =
-	{
-		{"distance",   required_argument, 0, 'd'},
-		{"shpidx1",  required_argument, 0, 'i'},
-		{"shpidx2",  required_argument, 0, 'j'},
-		{"predicate",  required_argument, 0, 'p'},
-		{"knn",  required_argument, 0, 'k'},
-		{"fields",     required_argument, 0, 'f'},
-		{"earth",     required_argument, 0, 'e'},
-		{"replicate",     required_argument, 0, 'r'},
-		{"cachefile",     required_argument, 0, 'c'},
-		{0, 0, 0, 0}
-	};
-
-	int c;
-	while ((c = getopt_long (argc, argv, "p:i:j:d:f:k:r:e:c:",long_options, &option_index)) != -1){
-		switch (c)
-		{
-			case 0:
-				/* If this option set a flag, do nothing else now. */
-				if (long_options[option_index].flag != 0)
-					break;
-				cout << "option " << long_options[option_index].name ;
-				if (optarg)
-					cout << "a with arg " << optarg ;
-				cout << endl;
-				break;
-
-			case 'p':
-				stop.JOIN_PREDICATE = get_join_predicate(optarg);
-				#ifdef DEBUG
-					cerr << "predicate: " 
-						<< stop.JOIN_PREDICATE << endl;
-                                #endif
-				break;
-
-			case 'i':
-				// Adjusting the actual geometry field (shift) to account
-				//   for tile_id and join_index
-				stop.shape_idx_1 = strtol(optarg, NULL, 10) - 1 + stop.offset;
-                                stop.join_cardinality++;
-                                #ifdef DEBUG
-					cerr << "geometry index i (set 1): " 
-						<< stop.shape_idx_1 << endl;
-				#endif
-                                break;
-
-			case 'j':
-				stop.shape_idx_2 = strtol(optarg, NULL, 10) - 1 + stop.offset;
-                                stop.join_cardinality++;
-                                #ifdef DEBUG
-					cerr << "geometry index j (set 2): " 
-						<< stop.shape_idx_2 << endl;
-				#endif
-                                break;
-
-			case 'd':
-				stop.expansion_distance = atof(optarg);
-				#ifdef DEBUG
-					cerr << "Search distance/Within distance parameter " 
-						<< stop.expansion_distance << endl;
-				#endif
-				break;
-
-			case 'k':
-				stop.k_neighbors = strtol(optarg, NULL, 10);
-				#ifdef DEBUG
-					cerr << "Number of neighbors: " 
-						<< stop.k_neighbors << endl;
-				#endif
-				break;
-
-			case 'f':
-                                set_projection_param(optarg);
-                                #ifdef DEBUG
-                                        cerr << "Original params: " << optarg << endl;
-					cerr << "output field: " << endl;
-					for (int m = 0; m < stop.output_fields.size(); m++) {
-						cerr << stop.output_fields[m] << SEP;
-					}
-					cerr << endl << "setid: ";
-					for (int m = 0; m < stop.output_fields_set_id.size(); m++) {
-						cerr << stop.output_fields_set_id[m] << SEP;
-					}
-					cerr << endl;
-                                #endif
-                                break;
-			case 'r':
-				stop.result_pair_duplicate = strcmp(optarg, "true") == 0;
-				#ifdef DEBUG
-					cerr << "Allows symmetric result pairs: "
-						<< stop.result_pair_duplicate << endl;
-				#endif
-				break;
-			case 'e':
-				stop.use_earth_distance = strcmp(optarg, "true") == 0;
-				#ifdef DEBUG
-					cerr << "Using earth distance: "
-						<< stop.use_earth_distance << endl;
-				#endif
-				break;
-
-			case 'c':
-				stop.cachefilename = string(optarg);
-				stop.use_cache_file = true;
-				#ifdef DEBUG
-					cerr << "Cache file name: " << filename << endl;
-				#endif
-				break;
-
-			case '?':
-				return false;
-				/* getopt_long already printed an error message. */
-				break;
-
-			default:
-				return false;
-		}
-	}
-
-	// query operator validation 
-	if (stop.JOIN_PREDICATE <= 0 ) {
-		#ifdef DEBUG 
-		cerr << "Query predicate is NOT set properly. Please refer to the documentation." << endl ; 
-		#endif
-		return false;
-	}
-	// check if distance is set for dwithin predicate
-	if (stop.JOIN_PREDICATE == ST_DWITHIN && stop.expansion_distance == 0.0) { 
-		#ifdef DEBUG 
-		cerr << "Distance parameter is NOT set properly. Please refer to the documentation." << endl ;
-		#endif
-		return false;
-	}
-	if (stop.join_cardinality == 0) {
-		#ifdef DEBUG 
-		cerr << "Join cardinality are NOT set properly. Please refer to the documentation." << endl ;
-		#endif
-		return false; 
-	}
-	
-	if ((stop.JOIN_PREDICATE == ST_NEAREST || stop.JOIN_PREDICATE == ST_NEAREST_2)
-		 && stop.k_neighbors <= 0) {
-		#ifdef DEBUG 
-		cerr << "K-the number of nearest neighbors is NOT set properly. Please refer to the documentation." << endl ;
-		#endif
-		return false; 
-	}
-
-	#ifdef DEBUG 
-	print_stop();
-	#endif
-	
-	return true;
 }
 
 

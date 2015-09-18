@@ -19,27 +19,36 @@ using namespace geos::operation::distance;
 
 using namespace SpatialIndex;
 
-#define FillFactor 0.9
-#define IndexCapacity 10 
-#define LeafCapacity 50
-#define COMPRESS true
-
 
 /* Result container for R-tree traversal */
-vector<id_type> hits;
 
 RTree::Data* parseInputPolygon(Geometry *p, id_type m_id);
+
+/* Obtain R-tree MBR of a given geometry (for usage in R-tree indexing)  */
+RTree::Data* parseInputPolygon(Geometry *p, id_type m_id) {
+	double low[2], high[2];
+	const Envelope * env = p->getEnvelopeInternal();
+	low[0] = env->getMinX();
+	low[1] = env->getMinY();
+	high[0] = env->getMaxX();
+	high[1] = env->getMaxY();
+
+	Region r(low, high, 2);
+	return new RTree::Data(0, 0 , r, m_id);// store a zero size null poiter.
+}
 
 
 /* Class used for R-tree traversal */
 class MyVisitor : public IVisitor
 {
     public:
-	* vector<id_type> matches;
+	vector<id_type> matches; // contains ids of matching objects
 
     public:	
-	MyVisitor(& vector<id_type> matches) matches(matches)
-	{
+	MyVisitor() {}
+
+	~MyVisitor() {
+		matches.clear();
 	}
 
 	void visitNode(const INode& n) {}
@@ -47,7 +56,7 @@ class MyVisitor : public IVisitor
 
 	void visitData(const IData& d)
 	{
-	    hits.push_back(d.getIdentifier());
+	    matches.push_back(d.getIdentifier());
 	}
 
 	void visitData(std::vector<const IData*>& v) {}
@@ -126,21 +135,6 @@ class GEOSDataStream : public IDataStream
 	id_type m_id;
 };
 
-/* Obtain R-tree MBR of a given geometry*/
-RTree::Data* parseInputPolygon(Geometry *p, id_type m_id) {
-	double low[2], high[2];
-	const Envelope * env = p->getEnvelopeInternal();
-	low[0] = env->getMinX();
-	low[1] = env->getMinY();
-	high[0] = env->getMaxX();
-	high[1] = env->getMaxY();
-
-	Region r(low, high, 2);
-	return new RTree::Data(0, 0 , r, m_id);// store a zero size null poiter.
-}
-
-
-
 /* Customized data stream to read from a file */
 class GEOSDataStreamFile : public IDataStream
 {
@@ -190,23 +184,31 @@ class GEOSDataStreamFile : public IDataStream
 
 		m_fin.seekg(0, std::ios::beg);
 		readNextEntry();
+		m_id = 0;
 	}
 
 	void readNextEntry()
 	{
-		id_type id;
 		std::string tile_id;
 		double low[2], high[2];
+		long count;
+		
 
-		m_fin >> op >> id >> low[0] >> low[1] >> high[0] >> high[1];
+		m_fin >> tile_id >> low[0] >> low[1] >> high[0] >> high[1] >> count;
+		/* store tile_id */
+		
 
 		if (m_fin.good())
 		{
 			Region r(low, high, 2);
-			m_pNext = new RTree::Data(sizeof(double), reinterpret_cast<byte*>(low), r, id);
+			m_pNext = new RTree::Data(sizeof(double), reinterpret_cast<byte*>(low), r, m_id);
+			stop.id_tiles[m_id] = tile_id;
+			/* Adjustment for nearest neighbor */
 		}
+		m_id++;
 	}
 
+	id_type m_id;
 	std::ifstream m_fin;
 	RTree::Data* m_pNext;
 };

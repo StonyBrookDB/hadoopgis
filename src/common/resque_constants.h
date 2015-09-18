@@ -54,3 +54,8 @@ const string PARAM_STATS_MIN_DIST = "mindist";
 
 const string STR_SET_DELIM = ":";
 const string STR_OUTPUT_DELIM = COMMA;
+
+#define FillFactor 0.9
+#define IndexCapacity 10 
+#define LeafCapacity 50
+#define COMPRESS true
