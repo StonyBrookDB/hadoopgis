@@ -69,6 +69,11 @@ struct query_op {
 	// Value == 1 for selfjoin
 
 	/* Mapping-specific */
+	bool extract_mbb;
+	bool collect_mbb_stat;
+	bool use_sampling;
+	double sample_rate;
+
 	map<int, string> id_tiles; // Mapping of tile names
 	map<int, geos::geom::Geometry*> geom_tiles; // mapping of actual geomery for tiles
 	map<int, long> count_tiles; // mapping of actual geomery for tiles

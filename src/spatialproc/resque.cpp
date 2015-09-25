@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <cmath>
 #include <map>
@@ -61,6 +62,7 @@ bool build_index_geoms(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spid
 extern void set_projection_param(char * arg);
 extern bool extract_params(int argc, char** argv );
 extern int get_join_predicate(char * predicate_str);
+extern void usage();
 
 extern double compute_jaccard(double union_area, double intersection_area);
 extern double compute_dice(double area1, double area2, double intersection_area);
@@ -108,14 +110,6 @@ void init(){
 	sttemp.distance = -1;	
 }
 
-void print_stop(){
-	// initlize query operator 
-	std::cerr << "predicate: " << stop.JOIN_PREDICATE << std::endl;
-	std::cerr << "distance: " << stop.expansion_distance << std::endl;
-	std::cerr << "shape index 1: " << stop.shape_idx_1 << std::endl;
-	std::cerr << "shape index 2: " << stop.shape_idx_2 << std::endl;
-	std::cerr << "join cardinality: " << stop.join_cardinality << std::endl;
-}
 
 int execute_query()
 {
@@ -134,7 +128,7 @@ int execute_query()
 	WKTReader *wkt_reader = new WKTReader(gf);
 	Geometry *poly = NULL;
 
-	/* Define the resource cleaning when using cache-file  */
+	/* Define the resource when using cache-file  */
 	int maxCardRelease = min(stop.join_cardinality, stop.use_cache_file ? 1 : 2);
 
 
@@ -152,7 +146,7 @@ int execute_query()
 	}
 
 
-	while(cin && getline(cin, input_line) && !cin.eof()) {
+	while (cin && getline(cin, input_line) && !cin.eof()) {
 		tokenize(input_line, fields, TAB, true);
 		sid = atoi(fields[1].c_str());
 		tile_id = fields[0];
@@ -276,12 +270,14 @@ void read_cache_file() {
 	vector<string> fields; // Temporary fields
 	int sid;
 	string tile_id;
+	ifstream input(stop.cachefilename);
 
-	while(cin && getline(cin, input_line) && !cin.eof()) {
+	while(!input.eof()) {
+		getline(input, input_line);
 		tokenize(input_line, fields, TAB, true);
 		sid = atoi(fields[1].c_str());
 		tile_id = fields[0];
-
+		/**************** To be completed in newer version */
 	}
 
 }
@@ -382,11 +378,12 @@ bool join_with_predicate(const Geometry * geom1 , const Geometry * geom2,
 				env1 = geom_buffer1->getEnvelopeInternal();
 				// geom_buffer2 = buffer_op2->getResultGeometry(expansion_distance);
 				//Envelope * env_temp = geom_buffer1->getEnvelopeInternal();
-				if (NULL == geom_buffer1)
+				if (NULL == geom_buffer1) {
 					cerr << "NULL: geom_buffer1" << endl;
-
+				}
 				flag = join_with_predicate(geom_buffer1, geom2, env1, env2, ST_INTERSECTS);
 				delete geom_buffer1;
+				delete buffer_op1;
 			}
 			break;
 
@@ -720,8 +717,6 @@ int join_bucket()
 			/* Retrieve enough candidate neighbors */
 			if (stop.JOIN_PREDICATE == ST_NEAREST_2) {
 				double search_radius = def_search_radius;
-				
-				sttemp.nearest_distances.clear();
 
 				while (vis.matches.size() <= stop.k_neighbors + 1
 					&& vis.matches.size() <= len2 // there can't be more neighbors than number of objects in the bucket
@@ -743,6 +738,17 @@ int join_bucket()
 					#endif
 					search_radius *= sqrt(2);
 				}
+
+				sttemp.nearest_distances.clear();
+
+				/* Handle the special case of rectangular/circle expansion -sqrt(2) expansion */
+				vis.matches.clear();
+				low[0] = env1->getMinX() - search_radius;
+				low[1] = env1->getMinY() - search_radius;
+				high[0] = env1->getMaxX() + search_radius;
+				high[1] = env1->getMaxY() + search_radius;
+				Region r3(low, high, 2);
+				spidx->intersectsWithQuery(r3, vis);
 			}
 			
 			for (uint32_t j = 0; j < vis.matches.size(); j++) 
@@ -793,6 +799,8 @@ int join_bucket()
 					sttemp.distance = (*it)->distance;
 					report_result(i, (*it)->object_id);	
 					pairs++;
+					/* Cleaning up memory */
+					delete *it;
 				}
 				sttemp.nearest_distances.clear();
 			}
@@ -811,52 +819,6 @@ int join_bucket()
 	delete spidx;
 	delete storage;
 	return pairs ;
-}
-
-
-/* Display help message to users */
-void usage(){
-	cerr  << endl << "Usage: resque [OPTIONS]" << endl << "OPTIONS:" << endl;
-	cerr << TAB << "-p,  --predicate" << TAB <<  "The spatial join predicate for query processing. \
-Acceptable values are [st_intersects, st_disjoint, st_overlaps, st_within, st_equals,\
-st_dwithin, st_crosses, st_touches, st_contains, st_nearest, st_nearest2]." << endl;
-	cerr << TAB << "-i, --shpidx1"  << TAB << "The index of the geometry field from the \
-first dataset. Index value starts from 1." << endl;
-	cerr << TAB << "-j, --shpidx2"  << TAB << "The index of the geometry field from the second dataset.\
-Index value starts from 1." << endl;
-	cerr << TAB << "-d, --distance" << TAB << "Used together with st_dwithin predicate to \
-indicate the join distance or used together with st_nearest to indicate the max distance \
-to search for nearest neighbor. \
-This field has no effect on other join predicates." << endl;	
-	cerr << TAB << "-k, --knn" << TAB << "The number of nearest neighbor\
-Only used in conjuction with the st_nearest or st_nearest2 predicate";
-	cerr << TAB << "-o, --offset"  << TAB << "Optional. \
-The offset (number of fields to be adjusted as metadata information.\
-Observe that the first field is always the tile id. The join id \
-is always the second field (2). Index starts from 1. Default value is 3" << endl;
-	cerr << TAB << "-r, --replicate" << TAB <<  "Optional [true | false]. \
-Indicates whether result pair are output twice for result pair that logically exists\
-when the pair is swapped (position). e.g. intersection between object 1 and 2\
-also indicates a logical intersection between object 2 and 1. \
-Default value is false" << endl;
-	cerr << TAB << "-e, --earth" << TAB << "Optional [true | false]\
-Indicate wheather to compute spherical distance for point-point on earth.";
-	cerr << TAB << "-f, --fields"   << TAB << "Optional. \
-Output field election parameter. Original fields \
-should have a format set_id:field_id. Fields are delimited by commas. \
-\nSpecial fields are [area1 | area2 | union | intersect |\
-dice | jaccard | mindist | tileid] representing the area of objects\
-from set 1, set 2, union, intersection,\
-dice coefficient, intersection coefficient, dice statitics, jaccard coeeficient,\
-minimum distance between the pair of polygons, and tile id correspondingly. \
-\nField values and statistics will be output output order specifed by users. \
-\nFor example: if we want to only output fields 1, 3, and 5\
-from the first dataset (indicated with param -i), \
-and output fields 1, 2, and 9 from the second dataset \
-(indicated with param -j) followed by the area of object 2 \
-and jaccard coefficient, \
-then we can provide an argument as: --fields 1:1,1:3,1:5:2:1,2:2,2:9,tileid,\
-area2,jacc" << endl;
 }
 
 /* main body of the engine */

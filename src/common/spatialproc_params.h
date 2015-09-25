@@ -149,8 +149,103 @@ int get_join_predicate(char * predicate_str)
 	}
 }
 
+/* Display help message to users */
+void usage(){
+	cerr  << endl << "Usage: program_name [OPTIONS]" << endl << "OPTIONS:" << endl;
+	cerr << TAB << "-p,  --predicate" << TAB <<  "The spatial join predicate for query processing. \
+Acceptable values are [st_intersects, st_disjoint, st_overlaps, st_within, st_equals,\
+st_dwithin, st_crosses, st_touches, st_contains, st_nearest, st_nearest2]." << endl;
+	cerr << TAB << "-i, --shpidx1"  << TAB << "The index of the geometry field from the \
+first dataset. Index value starts from 1." << endl;
+	cerr << TAB << "-j, --shpidx2"  << TAB << "The index of the geometry field from the second dataset.\
+Index value starts from 1." << endl;
+	cerr << TAB << "-d, --distance" << TAB << "Used together with st_dwithin predicate to \
+indicate the join distance or used together with st_nearest to indicate the max distance \
+to search for nearest neighbor. \
+This field has no effect on other join predicates." << endl;	
+	cerr << TAB << "-k, --knn" << TAB << "The number of nearest neighbor\
+Only used in conjuction with the st_nearest or st_nearest2 predicate" << endl;
+	cerr << TAB << "-o, --offset"  << TAB << "The offset \
+(number of fields to be adjusted as metadata information.\
+Observe that for spatial processing reducer (resque): the first field \
+is always the tile id. The join id is always the second field (2). \
+Index starts from 1. Default value for reducer is 3" << endl;
+	cerr << TAB << "-r, --replicate" << TAB <<  "Optional [true | false]. \
+Indicates whether result pair are output twice for result pair that logically exists\
+when the pair is swapped (position). e.g. intersection between object 1 and 2\
+also indicates a logical intersection between object 2 and 1. \
+Default value is false" << endl;
+	cerr << TAB << "-e, --earth" << TAB << "Optional [true | false]\
+Indicate wheather to compute spherical distance for point-point on earth." << endl;
+	cerr << TAB << "-q, --samplerate" << TAB << "Optional. Sample rate \
+used in partitioning (extracting MBB step)." << endl;
+	cerr << TAB << "-x, --extract" << TAB << "[Mapper only] \
+Mapper is used to extract MBBs only" << endl;
+	cerr << TAB << "-s, --collectstat" << TAB << "[Mapper only] \
+Mapper is used to collect statistics from MBB to determine space dimension" << endl;
+	cerr << TAB << "-f, --fields"   << TAB << "Optional. \
+Output field election parameter. Original fields \
+should have a format set_id:field_id. Fields are delimited by commas. \
+\nSpecial fields are [area1 | area2 | union | intersect |\
+dice | jaccard | mindist | tileid] representing the area of objects\
+from set 1, set 2, union, intersection,\
+dice coefficient, intersection coefficient, dice statitics, jaccard coeeficient,\
+minimum distance between the pair of polygons, and tile id correspondingly. \
+\nField values and statistics will be output output order specifed by users. \
+\nFor example: if we want to only output fields 1, 3, and 5\
+from the first dataset (indicated with param -i), \
+and output fields 1, 2, and 9 from the second dataset \
+(indicated with param -j) followed by the area of object 2 \
+and jaccard coefficient, \
+then we can provide an argument as: --fields 1:1,1:3,1:5:2:1,2:2,2:9,tileid,\
+area2,jacc" << endl;
+}
+
+
 bool extract_params(int argc, char** argv ){ 
-	/* getopt_long stores the option index here. */
+/* Initialize default values in query structs (operator and temporary placeholders) */
+	stop.use_cache_file = false;
+	// initlize query operator 
+	stop.expansion_distance = 0.0;
+	stop.k_neighbors = 0;
+	stop.JOIN_PREDICATE = 0;
+	stop.shape_idx_1 = 0;
+	stop.shape_idx_2 = 0 ;
+	stop.join_cardinality = 0;
+	stop.offset = 3; // default format or value for offset
+
+	stop.prefix_1 = NULL;
+	stop.prefix_2 = NULL;
+
+	stop.needs_area_1 = false;
+	stop.needs_area_2 = false;
+	stop.needs_union = false;
+	stop.needs_intersect = false;
+	stop.needs_dice = false;
+	stop.needs_jaccard = false;
+
+	stop.result_pair_duplicate = true;
+
+	stop.use_earth_distance = false;
+
+	stop.output_fields.clear();
+	stop.output_fields_set_id.clear();
+
+	stop.use_cache_file = false;
+	stop.extract_mbb = false;
+	stop.collect_mbb_stat = false;
+	stop.use_sampling = false;
+	stop.sample_rate = 1.0;
+
+	sttemp.nearest_distances.clear();	
+	sttemp.area1 = -1;
+	sttemp.area2 = -1;
+	sttemp.union_area = -1;
+	sttemp.intersect_area = -1;
+	sttemp.dice = -1;
+	sttemp.jaccard = -1;
+	sttemp.distance = -1;	
+
 	int option_index = 0;
 	/* getopt_long uses opterr to report error*/
 	opterr = 0 ;
@@ -167,11 +262,14 @@ bool extract_params(int argc, char** argv ){
 		{"cachefile",     required_argument, 0, 'c'},
 		{"prefix1",     required_argument, 0, 'a'},
 		{"prefix2",     required_argument, 0, 'b'},
+		{"extract",     required_argument, 0, 'x'},
+		{"collectstat",     required_argument, 0, 's'},
+		{"samplerate",     required_argument, 0, 'q'},
 		{0, 0, 0, 0}
 	};
 
 	int c;
-	while ((c = getopt_long (argc, argv, "p:i:j:d:f:k:r:e:c:a:b:", long_options, &option_index)) != -1){
+	while ((c = getopt_long (argc, argv, "p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
 		switch (c)
 		{
 			case 0:
@@ -187,27 +285,24 @@ bool extract_params(int argc, char** argv ){
 			case 'p':
 				stop.JOIN_PREDICATE = get_join_predicate(optarg);
 				#ifdef DEBUG
-					cerr << "predicate: " 
-						<< stop.JOIN_PREDICATE << endl;
-                                #endif
+					cerr << "predicate: " << stop.JOIN_PREDICATE << endl;
+       	                        #endif
 				break;
 
 			case 'i':
-				// Adjusting the actual geometry field (shift) to account
-				//   for tile_id and join_index
-				stop.shape_idx_1 = strtol(optarg, NULL, 10) - 1 + stop.offset;
+				stop.shape_idx_1 = strtol(optarg, NULL, 10) - 1;
                                 stop.join_cardinality++;
                                 #ifdef DEBUG
-					cerr << "geometry index i (set 1): " 
+					cerr << "geometry index i (set 1) before offsetting: " 
 						<< stop.shape_idx_1 << endl;
 				#endif
                                 break;
 
 			case 'j':
-				stop.shape_idx_2 = strtol(optarg, NULL, 10) - 1 + stop.offset;
+				stop.shape_idx_2 = strtol(optarg, NULL, 10) - 1;
                                 stop.join_cardinality++;
                                 #ifdef DEBUG
-					cerr << "geometry index j (set 2): " 
+					cerr << "geometry index j (set 2) before offsetting: " 
 						<< stop.shape_idx_2 << endl;
 				#endif
                                 break;
@@ -280,6 +375,28 @@ bool extract_params(int argc, char** argv ){
 				#endif
 				break;
 
+			case 'x':
+				stop.extract_mbb = true;
+				#ifdef DEBUG
+					cerr << "Set to extract MBBs: " << stop.extract_mbb << endl;
+				#endif
+				break;
+
+			case 's':
+				stop.collect_mbb_stat = true;
+				#ifdef DEBUG
+					cerr << "Collecting mbb stat:  " << stop.collect_mbb_stat << endl;
+				#endif
+				break;
+
+			case 'q':
+				stop.sample_rate = atof(optarg);
+				stop.use_sampling = true;
+				#ifdef DEBUG
+					cerr << "Sample rate: " << stop.sample_rate << endl;
+				#endif
+				break;
+
 			case '?':
 				return false;
 				/* getopt_long already printed an error message. */
@@ -289,6 +406,15 @@ bool extract_params(int argc, char** argv ){
 				return false;
 		}
 	}
+
+	// Adjusting the actual geometry field (shift) to account
+	//   for tile_id and join_index
+	stop.shape_idx_1 += stop.offset;
+	stop.shape_idx_2 += stop.offset;
+	#ifdef DEBUG
+	cerr << "geometry index i (set 1) before offsetting: " << stop.shape_idx_1 << endl;
+	cerr << "geometry index i (set 2) before offsetting: " << stop.shape_idx_2 << endl;
+	#endif
 
 	// query operator validation 
 	if (stop.JOIN_PREDICATE <= 0 ) {
@@ -319,9 +445,5 @@ bool extract_params(int argc, char** argv ){
 		return false; 
 	}
 
-	#ifdef DEBUG 
-	print_stop();
-	#endif
-	
 	return true;
 }

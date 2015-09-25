@@ -8,7 +8,6 @@
 #include <geos/io/WKTReader.h>
 #include <geos/io/WKTWriter.h>
 #include <geos/opBuffer.h>
-
 #include <spatialindex/SpatialIndex.h>
 
 using namespace geos;
@@ -16,13 +15,12 @@ using namespace geos::io;
 using namespace geos::geom;
 using namespace geos::operation::buffer; 
 using namespace geos::operation::distance;
-
+using namespace std;
 using namespace SpatialIndex;
 
 
 /* Result container for R-tree traversal */
 
-RTree::Data* parseInputPolygon(Geometry *p, id_type m_id);
 
 /* Obtain R-tree MBR of a given geometry (for usage in R-tree indexing)  */
 RTree::Data* parseInputPolygon(Geometry *p, id_type m_id) {
@@ -35,40 +33,40 @@ RTree::Data* parseInputPolygon(Geometry *p, id_type m_id) {
 
 	Region r(low, high, 2);
 	return new RTree::Data(0, 0 , r, m_id);// store a zero size null poiter.
-}
+};
 
 
 /* Class used for R-tree traversal */
 class MyVisitor : public IVisitor
 {
-    public:
-	vector<id_type> matches; // contains ids of matching objects
+	public:
+		vector<SpatialIndex::id_type> matches; // contains ids of matching objects
 
-    public:	
-	MyVisitor() {}
+	public:	
+		MyVisitor() {}
 
-	~MyVisitor() {
-		matches.clear();
-	}
+		~MyVisitor() {
+			matches.clear();
+		}
 
-	void visitNode(const INode& n) {}
-	void visitData(std::string &s) {}
+		void visitNode(const INode& n) {}
+		void visitData(std::string &s) {}
 
-	void visitData(const IData& d)
-	{
-	    matches.push_back(d.getIdentifier());
-	}
+		void visitData(const IData& d)
+		{
+			matches.push_back(d.getIdentifier());
+		}
 
-	void visitData(std::vector<const IData*>& v) {}
-	void visitData(std::vector<uint32_t>& v){}
+		void visitData(std::vector<const IData*>& v) {}
+		void visitData(std::vector<uint32_t>& v){}
 };
 
 /* Customized data stream to read from a mapping of int to geomery */
 class GEOSDataStream : public IDataStream
 {
-    public:
-	GEOSDataStream(map<int,Geometry*> * inputColl ) : m_pNext(0), len(0), m_id(0)
-    	{
+	public:
+		GEOSDataStream(map<int,Geometry*> * inputColl ) : m_pNext(0), len(0), m_id(0)
+	{
 		if (inputColl->empty())
 			throw Tools::IllegalArgumentException("Input size is ZERO.");
 		shapes = inputColl;
@@ -77,69 +75,69 @@ class GEOSDataStream : public IDataStream
 		readNextEntry();
 	}
 
-	virtual ~GEOSDataStream()
-	{
-	    if (m_pNext != 0) delete m_pNext;
-	}
+		virtual ~GEOSDataStream()
+		{
+			if (m_pNext != 0) delete m_pNext;
+		}
 
-	virtual IData* getNext()
-	{
-	    if (m_pNext == 0) return 0;
+		virtual IData* getNext()
+		{
+			if (m_pNext == 0) return 0;
 
-	    RTree::Data* ret = m_pNext;
-	    m_pNext = 0;
-	    readNextEntry();
-	    return ret;
-	}
+			RTree::Data* ret = m_pNext;
+			m_pNext = 0;
+			readNextEntry();
+			return ret;
+		}
 
-	virtual bool hasNext()
-	{
-	    return (m_pNext != 0);
-	}
+		virtual bool hasNext()
+		{
+			return (m_pNext != 0);
+		}
 
-	virtual uint32_t size()
-	{
-	    return len;
-	    //throw Tools::NotSupportedException("Operation not supported.");
-	}
+		virtual uint32_t size()
+		{
+			return len;
+			//throw Tools::NotSupportedException("Operation not supported.");
+		}
 
-	virtual void rewind()
-	{
-	    if (m_pNext != 0)
-	    {
-		delete m_pNext;
-		m_pNext = 0;
-	    }
+		virtual void rewind()
+		{
+			if (m_pNext != 0)
+			{
+				delete m_pNext;
+				m_pNext = 0;
+			}
 
-	    m_id  = 0;
-	    iter = shapes->begin();
-	    readNextEntry();
-	}
+			m_id  = 0;
+			iter = shapes->begin();
+			readNextEntry();
+		}
 
-	void readNextEntry()
-	{
-	    if (iter != shapes->end())
-	    {
-		//std::cerr<< "readNextEntry m_id == " << m_id << std::endl;
-		m_id = iter->first;
-		m_pNext = parseInputPolygon(iter->second, m_id);
-		iter++;
-	    }
-	}
+		void readNextEntry()
+		{
+			if (iter != shapes->end())
+			{
+				//std::cerr<< "readNextEntry m_id == " << m_id << std::endl;
+				m_id = iter->first;
+				m_pNext = parseInputPolygon(iter->second, m_id);
+				iter++;
+			}
+		}
 
-	RTree::Data* m_pNext;
-	map<int,Geometry*> * shapes; 
-	map<int,Geometry*>::iterator iter; 
+		RTree::Data* m_pNext;
+		map<int,Geometry*> * shapes; 
+		map<int,Geometry*>::iterator iter; 
 
-	int len;
-	id_type m_id;
+		int len;
+		id_type m_id;
 };
 
-/* Customized data stream to read from a file */
-class GEOSDataStreamFile : public IDataStream
+/* Customized data stream to read from a file to build tile indexing  */
+class GEOSDataStreamFileTile : public IDataStream
 {
-     public:
-	GEOSDataStreamFile(char *input_file) : m_pNext(0)
+	public:
+		GEOSDataStreamFileTile(char *input_file) : m_pNext(0)
 	{
 		m_fin.open(input_file);
 
@@ -149,68 +147,138 @@ class GEOSDataStreamFile : public IDataStream
 		readNextEntry();
 	}
 
-	virtual ~GEOSDataStreamFile()
-	{
-		if (m_pNext != 0) delete m_pNext;
-	}
-
-	virtual IData* getNext()
-	{
-		if (m_pNext == 0) return 0;
-
-		RTree::Data* ret = m_pNext;
-		m_pNext = 0;
-		readNextEntry();
-		return ret;
-	}
-
-	virtual bool hasNext()
-	{
-		return (m_pNext != 0);
-	}
-
-	virtual uint32_t size()
-	{
-		throw Tools::NotSupportedException("Operation not supported.");
-	}
-
-	virtual void rewind()
-	{
-		if (m_pNext != 0)
+		virtual ~GEOSDataStreamFileTile()
 		{
-			delete m_pNext;
+			if (m_pNext != 0) delete m_pNext;
+		}
+
+		virtual IData* getNext()
+		{
+			if (m_pNext == 0) return 0;
+
+			RTree::Data* ret = m_pNext;
 			m_pNext = 0;
+			readNextEntry();
+			return ret;
 		}
 
-		m_fin.seekg(0, std::ios::beg);
-		readNextEntry();
-		m_id = 0;
-	}
-
-	void readNextEntry()
-	{
-		std::string tile_id;
-		double low[2], high[2];
-		long count;
-		
-
-		m_fin >> tile_id >> low[0] >> low[1] >> high[0] >> high[1] >> count;
-		/* store tile_id */
-		
-
-		if (m_fin.good())
+		virtual bool hasNext()
 		{
-			Region r(low, high, 2);
-			m_pNext = new RTree::Data(sizeof(double), reinterpret_cast<byte*>(low), r, m_id);
-			stop.id_tiles[m_id] = tile_id;
-			/* Adjustment for nearest neighbor */
+			return (m_pNext != 0);
 		}
-		m_id++;
-	}
 
-	id_type m_id;
-	std::ifstream m_fin;
-	RTree::Data* m_pNext;
+		virtual uint32_t size()
+		{
+			throw Tools::NotSupportedException("Operation not supported.");
+		}
+
+		virtual void rewind()
+		{
+			if (m_pNext != 0)
+			{
+				delete m_pNext;
+				m_pNext = 0;
+			}
+
+			m_fin.seekg(0, std::ios::beg);
+			readNextEntry();
+			m_id = 0;
+		}
+
+		void readNextEntry()
+		{
+			std::string tile_id;
+			double low[2], high[2];
+			long count;
+
+
+			m_fin >> tile_id >> low[0] >> low[1] >> high[0] >> high[1] >> count;
+			/* store tile_id */
+
+
+			if (m_fin.good())
+			{
+				Region r(low, high, 2);
+				m_pNext = new RTree::Data(sizeof(double), reinterpret_cast<byte*>(low), r, m_id);
+				/* Use spatialproc struct */
+				stop.id_tiles[m_id] = tile_id;
+			}
+			m_id++;
+		}
+
+		id_type m_id;
+		std::ifstream m_fin;
+		RTree::Data* m_pNext;
 };
 
+/* Customized file stream of MBB to read from file; used by partitioners */
+class SpaceStreamReader : public IDataStream
+{
+	public:
+		SpaceStreamReader(std::string inputFile) : m_pNext(0)
+	{
+		m_fin.open(inputFile.c_str());
+
+		if (! m_fin)
+			throw Tools::IllegalArgumentException("Input file not found.");
+
+		readNextEntry();
+	}
+
+		virtual ~SpaceStreamReader()
+		{
+			if (m_pNext != 0) delete m_pNext;
+			m_fin.close();
+		}
+
+		virtual IData* getNext()
+		{
+			if (m_pNext == 0) return 0;
+
+			RTree::Data* ret = m_pNext;
+			m_pNext = 0;
+			readNextEntry();
+			return ret;
+		}
+
+		virtual bool hasNext()
+		{
+			return (m_pNext != 0);
+		}
+
+		virtual uint32_t size()
+		{
+			throw Tools::NotSupportedException("Operation not supported.");
+		}
+
+		virtual void rewind()
+		{
+			if (m_pNext != 0)
+			{
+				delete m_pNext;
+				m_pNext = 0;
+			}
+
+			m_fin.seekg(0, std::ios::beg);
+			readNextEntry();
+		}
+
+		void readNextEntry()
+		{
+			double low[2], high[2];
+			id_type id;
+
+
+			m_fin >> id >> low[0] >> low[1] >> high[0] >> high[1] ;
+
+			if (m_fin.good())
+			{
+				Region r(low, high, 2);
+				m_pNext = new RTree::Data(0, 0 , r, id);// store a zero size null poiter.
+			}
+		}
+
+		std::ifstream m_fin;
+		RTree::Data* m_pNext;
+};
 
