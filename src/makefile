@@ -1,7 +1,7 @@
 prefix=/usr/local
 
-libbase=${SATO_LIB_PATH}
-incbase=${SATO_INC_PATH}
+libbase=${HADOOPGIS_LIB_PATH}
+incbase=${HADOOPGIS_INC_PATH}
 
 builddir=../build/bin
 
