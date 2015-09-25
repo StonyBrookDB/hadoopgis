@@ -264,12 +264,13 @@ bool extract_params(int argc, char** argv ){
 		{"prefix2",     required_argument, 0, 'b'},
 		{"extract",     required_argument, 0, 'x'},
 		{"collectstat",     required_argument, 0, 's'},
+		{"offset",     required_argument, 0, 'u'},
 		{"samplerate",     required_argument, 0, 'q'},
 		{0, 0, 0, 0}
 	};
 
 	int c;
-	while ((c = getopt_long (argc, argv, "p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
+	while ((c = getopt_long (argc, argv, "u:p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
 		switch (c)
 		{
 			case 0:
@@ -280,6 +281,14 @@ bool extract_params(int argc, char** argv ){
 				if (optarg)
 					cout << "a with arg " << optarg ;
 				cout << endl;
+				break;
+
+			case 'u':
+				stop.offset = strtol(optarg, NULL, 10);
+				cerr << "never got here" << endl;
+				#ifdef DEBUG
+					cerr << "Offset ():  " << stop.offset << endl;
+				#endif
 				break;
 
 			case 'p':
@@ -371,7 +380,7 @@ bool extract_params(int argc, char** argv ){
 			case 'b':
 				stop.prefix_2 = optarg;
 				#ifdef DEBUG
-					cerr << "Prefix for data set 2 path:  " << stop.prefix_2 << endl;
+					cerr << "Prefix for data set 2 path: " << stop.prefix_2 << endl;
 				#endif
 				break;
 
@@ -388,6 +397,7 @@ bool extract_params(int argc, char** argv ){
 					cerr << "Collecting mbb stat:  " << stop.collect_mbb_stat << endl;
 				#endif
 				break;
+
 
 			case 'q':
 				stop.sample_rate = atof(optarg);
@@ -412,8 +422,10 @@ bool extract_params(int argc, char** argv ){
 	stop.shape_idx_1 += stop.offset;
 	stop.shape_idx_2 += stop.offset;
 	#ifdef DEBUG
-	cerr << "geometry index i (set 1) before offsetting: " << stop.shape_idx_1 << endl;
-	cerr << "geometry index i (set 2) before offsetting: " << stop.shape_idx_2 << endl;
+	cerr << "Offset:  " << stop.offset << endl;
+	cerr << "geometry index i (set 1) after offsetting: " << stop.shape_idx_1 << endl;
+	cerr << "geometry index i (set 2) after offsetting: " << stop.shape_idx_2 << endl;
+        cerr << "join cardinality: " << stop.join_cardinality << endl;
 	#endif
 
 	// query operator validation 

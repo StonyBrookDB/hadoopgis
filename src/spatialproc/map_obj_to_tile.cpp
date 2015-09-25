@@ -122,6 +122,9 @@ bool process_input(const int join_idx, const int geom_idx) {
 						space_max_x = high[0] > space_max_x ? high[0] : space_max_x;
 						space_max_y = high[0] > space_max_y ? high[1] : space_max_y;
 					}
+					#ifdef DEBUG
+					count_objects++;
+					#endif
 				}
 
 			} else {
@@ -247,16 +250,19 @@ int main(int argc, char **argv) {
         	return -1;
 	}
 
-  	if (!build_index_tiles(spidx, storage)) {
-		#ifdef DEBUG
-	   	cerr << "ERROR: Index building on tile structure has failed ." << std::endl;
-		#endif
-		return 1 ;
-  	}
-	else { 
-		#ifdef DEBUG  
-    		cerr << "GRIDIndex Generated successfully." << endl;
-		#endif
+		
+  	if (!stop.extract_mbb) {
+		if( !build_index_tiles(spidx, storage)) {
+			#ifdef DEBUG
+	   		cerr << "ERROR: Index building on tile structure has failed ." << std::endl;
+			#endif
+			return 1 ;
+  		}
+		else { 
+			#ifdef DEBUG  
+    			cerr << "GRIDIndex Generated successfully." << endl;
+			#endif
+		}
 	}
 	
 	process_input(join_idx, geom_idx);
