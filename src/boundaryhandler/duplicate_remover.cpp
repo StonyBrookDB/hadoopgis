@@ -19,7 +19,7 @@ using namespace std;
 
 /* Same as system cat program */
 void cat() {
-	string input_line;
+	string input_line = "";
 	while(cin && getline(cin, input_line) && !cin.eof()) {
 		cout << input_line << endl;
 	}
@@ -27,8 +27,8 @@ void cat() {
 
 /* Same as system uniq program  */
 void uniq() {
-	string input_line;
-	string prev_line = NULL;
+	string input_line = "";
+	string prev_line = "";
 	while(cin && getline(cin, input_line) && !cin.eof()) {
 		if (input_line.compare(prev_line) != 0) {
 			cout << input_line << endl;
@@ -44,10 +44,10 @@ void uniq() {
 
 /* Same as uniq but it discards the last field */
 void uniqpart() {
-	string input_line;
-	string prev_part;
-	string current_part;
-	size_t pos;
+	string input_line = "";
+	string prev_part = "";
+	string current_part = "";
+	size_t pos = -1;
 	while(cin && getline(cin, input_line) && !cin.eof()) {
 		pos = input_line.rfind(TAB);
 		if (pos == string::npos) {

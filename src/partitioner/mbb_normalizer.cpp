@@ -76,7 +76,6 @@ int main(int argc, char **argv) {
 	space_x_span  = partop.max_x - partop.min_x;
 	space_y_span = partop.max_y - partop.min_y;
 
-	cerr << "got here" << endl;
 	while(cin && getline(cin, input_line) && !cin.eof()) {
 		tokenize(input_line, fields, TAB, true);   
 

@@ -26,14 +26,16 @@ clock_t total_reading;
 clock_t total_query_exec;
 
 /* Function protoypes */
-bool build_index_tiles();
-bool process_input(const int join_idx, const int geom_idx);
+bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx);
+bool process_input(const int join_idx, const int geom_idx, 
+		IStorageManager * &storage, ISpatialIndex * &spidx);
 
 /* Included in header file */
 extern void usage();
 
 /* Process standard input and emit objects to their respective partitions */
-bool process_input(const int join_idx, const int geom_idx) {
+bool process_input(const int join_idx, const int geom_idx, 
+		IStorageManager * &storage, ISpatialIndex * &spidx) {
 	string input_line;
 	vector<string> fields;
 	bool firstLineRead = false;
@@ -41,8 +43,6 @@ bool process_input(const int join_idx, const int geom_idx) {
 	Geometry* geom; 
 	GeometryFactory *gf = NULL;
 	WKTReader *wkt_reader = NULL;
-	IStorageManager * storage = NULL;
-	ISpatialIndex * spidx = NULL;
 	MyVisitor vis;
 
 	/* Space info */
@@ -70,13 +70,11 @@ bool process_input(const int join_idx, const int geom_idx) {
 
 	/* Handling standard input */
 	while(cin && getline(cin, input_line) && !cin.eof()){
-
 		/* Sampling (optional parameter) */
 		if (stop.use_sampling &&
 			(static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) > stop.sample_rate) {
 			continue; // skip the record
 		}
-
 
 		tokenize(input_line, fields, TAB, true);
     		if (fields[geom_idx].length() < 2 ) {
@@ -92,7 +90,6 @@ bool process_input(const int join_idx, const int geom_idx) {
 			total_reading += clock() - start_reading_data;
 			start_query_exec = clock();
 			#endif
-
 			double low[2], high[2];
 			const Envelope * env = geom->getEnvelopeInternal();
 
@@ -122,14 +119,13 @@ bool process_input(const int join_idx, const int geom_idx) {
 						space_max_x = high[0] > space_max_x ? high[0] : space_max_x;
 						space_max_y = high[0] > space_max_y ? high[1] : space_max_y;
 					}
-					#ifdef DEBUG
-					count_objects++;
-					#endif
 				}
-
+				#ifdef DEBUG
+				count_objects++;
+				#endif
 			} else {
 				Region r(low, high, 2);
-		
+					
 				/* Find objects matching with intersecting tiles*/	
 				spidx->intersectsWithQuery(r, vis);
 
@@ -187,7 +183,7 @@ bool process_input(const int join_idx, const int geom_idx) {
 }
 
 /* Build indexing on tile boundaries from cache file */
-bool build_index_tiles(ISpatialIndex* &spidx, IStorageManager* &storage) {
+bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx) {
 	// build spatial index on tile boundaries 
 	id_type  indexIdentifier;
 	GEOSDataStreamFileTile stream(stop.cachefilename); // input from cache file
@@ -252,7 +248,7 @@ int main(int argc, char **argv) {
 
 		
   	if (!stop.extract_mbb) {
-		if( !build_index_tiles(spidx, storage)) {
+		if( !build_index_tiles(storage, spidx)) {
 			#ifdef DEBUG
 	   		cerr << "ERROR: Index building on tile structure has failed ." << std::endl;
 			#endif
@@ -265,7 +261,7 @@ int main(int argc, char **argv) {
 		}
 	}
 	
-	process_input(join_idx, geom_idx);
+	process_input(join_idx, geom_idx, storage, spidx);
 
 	/* Clean up indices */
 	delete spidx;

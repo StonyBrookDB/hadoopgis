@@ -189,10 +189,9 @@ class GEOSDataStreamFileTile : public IDataStream
 		{
 			std::string tile_id;
 			double low[2], high[2];
-			long count;
 
 
-			m_fin >> tile_id >> low[0] >> low[1] >> high[0] >> high[1] >> count;
+			m_fin >> tile_id >> low[0] >> low[1] >> high[0] >> high[1];
 			/* store tile_id */
 
 

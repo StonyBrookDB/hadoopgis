@@ -140,11 +140,11 @@ int execute_query()
 	start_reading_data = clock();
 	#endif
 
-	/* Handle reading from cache file */
+	/*
 	if (stop.use_cache_file) {
 		read_cache_file();
 	}
-
+	*/
 
 	while (cin && getline(cin, input_line) && !cin.eof()) {
 		tokenize(input_line, fields, TAB, true);

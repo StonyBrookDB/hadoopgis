@@ -165,6 +165,8 @@ to search for nearest neighbor. \
 This field has no effect on other join predicates." << endl;	
 	cerr << TAB << "-k, --knn" << TAB << "The number of nearest neighbor\
 Only used in conjuction with the st_nearest or st_nearest2 predicate" << endl;
+	cerr << TAB << "-c, --cachefile" << TAB << "The name of cache file. \
+Dependent on operation/task" << endl;
 	cerr << TAB << "-o, --offset"  << TAB << "The offset \
 (number of fields to be adjusted as metadata information.\
 Observe that for spatial processing reducer (resque): the first field \
@@ -264,13 +266,13 @@ bool extract_params(int argc, char** argv ){
 		{"prefix2",     required_argument, 0, 'b'},
 		{"extract",     required_argument, 0, 'x'},
 		{"collectstat",     required_argument, 0, 's'},
-		{"offset",     required_argument, 0, 'u'},
+		{"offset",     required_argument, 0, 'o'},
 		{"samplerate",     required_argument, 0, 'q'},
 		{0, 0, 0, 0}
 	};
 
 	int c;
-	while ((c = getopt_long (argc, argv, "u:p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
+	while ((c = getopt_long (argc, argv, "o:p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
 		switch (c)
 		{
 			case 0:
@@ -283,11 +285,10 @@ bool extract_params(int argc, char** argv ){
 				cout << endl;
 				break;
 
-			case 'u':
+			case 'o':
 				stop.offset = strtol(optarg, NULL, 10);
-				cerr << "never got here" << endl;
 				#ifdef DEBUG
-					cerr << "Offset ():  " << stop.offset << endl;
+					cerr << "Offset: " << stop.offset << endl;
 				#endif
 				break;
 
@@ -424,7 +425,7 @@ bool extract_params(int argc, char** argv ){
 	#ifdef DEBUG
 	cerr << "Offset:  " << stop.offset << endl;
 	cerr << "geometry index i (set 1) after offsetting: " << stop.shape_idx_1 << endl;
-	cerr << "geometry index i (set 2) after offsetting: " << stop.shape_idx_2 << endl;
+	cerr << "geometry index j (set 2) after offsetting: " << stop.shape_idx_2 << endl;
         cerr << "join cardinality: " << stop.join_cardinality << endl;
 	#endif
 
