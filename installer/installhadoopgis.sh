@@ -87,6 +87,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 cd $SCRIPT_DIR
 
 cd ../src
+make install
 make
 
 # Return to the install directory

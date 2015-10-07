@@ -25,10 +25,17 @@ endif
 CC = gcc
 CXX = g++
 
-
-all: resque map_obj_to_tile get_space_dimension \
+all: queryproc resque map_obj_to_tile get_space_dimension \
 	mbb_normalizer duplicate_remover compute_partition_size \
 	hc bsp fg bos
+
+queryproc: controller/queryproc.cpp \
+	common/resque_constants.h \
+	common/spatialproc_structs.h \
+	common/spatialproc_params.h \
+	common/string_constants.h \
+	common/tokenizer.h
+	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 resque: spatialproc/resque.cpp  \
 	common/resque_constants.h \

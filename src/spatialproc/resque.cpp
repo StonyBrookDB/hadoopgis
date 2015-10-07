@@ -71,6 +71,8 @@ extern double earth_distance(double lat1, double lng1, double lat2, double lng2)
 
 
 /* Initialize default values in query structs (operator and temporary placeholders) */
+/* To be potentially removed to adjust for initialization already 
+ * 	been done in param extraction method */
 void init(){
 	stop.use_cache_file = false;
 	// initlize query operator 

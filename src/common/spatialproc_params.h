@@ -214,7 +214,7 @@ bool extract_params(int argc, char** argv ){
 	stop.shape_idx_1 = 0;
 	stop.shape_idx_2 = 0 ;
 	stop.join_cardinality = 0;
-	stop.offset = 3; // default format or value for offset
+	stop.offset = 3; // default value for offset (used in resque)
 
 	stop.prefix_1 = NULL;
 	stop.prefix_2 = NULL;
@@ -268,6 +268,8 @@ bool extract_params(int argc, char** argv ){
 		{"collectstat",     required_argument, 0, 's'},
 		{"offset",     required_argument, 0, 'o'},
 		{"samplerate",     required_argument, 0, 'q'},
+
+		// Specific to controller only
 		{0, 0, 0, 0}
 	};
 
@@ -348,6 +350,7 @@ bool extract_params(int argc, char** argv ){
 					cerr << endl;
                                 #endif
                                 break;
+
 			case 'r':
 				stop.result_pair_duplicate = strcmp(optarg, "true") == 0;
 				#ifdef DEBUG
@@ -355,6 +358,7 @@ bool extract_params(int argc, char** argv ){
 						<< stop.result_pair_duplicate << endl;
 				#endif
 				break;
+
 			case 'e':
 				stop.use_earth_distance = strcmp(optarg, "true") == 0;
 				#ifdef DEBUG
@@ -398,7 +402,6 @@ bool extract_params(int argc, char** argv ){
 					cerr << "Collecting mbb stat:  " << stop.collect_mbb_stat << endl;
 				#endif
 				break;
-
 
 			case 'q':
 				stop.sample_rate = atof(optarg);
