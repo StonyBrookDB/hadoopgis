@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <cstring>
 #include <cmath>
 #include <map>
@@ -52,6 +53,7 @@ struct query_temp {
 /* Query operator */
 struct query_op {
 	bool use_cache_file;
+	bool reading_mbb; // input is mbb
 	char* cachefilename;
 
 	int JOIN_PREDICATE; /* Join predicate - see resquecommon.h for the full list*/
@@ -71,11 +73,12 @@ struct query_op {
 	/* Mapping-specific */
 	bool extract_mbb;
 	bool collect_mbb_stat;
-	bool use_sampling;
-	double sample_rate;
+	//bool use_sampling;
+	//double sample_rate;
+	bool drop_join_idx; // Does not append join index when emitting object to tile
 
 	map<int, string> id_tiles; // Mapping of tile names
-	map<int, geos::geom::Geometry*> geom_tiles; // mapping of actual geomery for tiles
+	//map<int, geos::geom::Geometry*> geom_tiles; // mapping of actual geomery for tiles
 	map<int, long> count_tiles; // mapping of actual geomery for tiles
 	char* prefix_1; // directory prefix for the files from dataset 1
 	char* prefix_2; // directory prefix for the files from dataset 2

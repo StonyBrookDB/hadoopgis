@@ -7,6 +7,9 @@
 #include <cstdlib> 
 #include "../../common/string_constants.h"
 #include "../../common/Timer.hpp"
+#include "../../common/tokenizer.h"
+#include "../../common/partition_structs.h"
+#include "../../common/partition_params.h"
 #include <boost/program_options.hpp>
 #include "bsp_structs.hpp"
 #include "BinarySplitNode.hpp"
@@ -14,132 +17,128 @@
 using namespace std;
 namespace po = boost::program_options;
 
-//function defs
-void processInput();
-bool readInput();
 
-// global vars 
-int bucket_size ;
+// Global variables (used by BinarySplitNode)
 vector<BinarySplitNode*> leafNodeList;
 vector<SpatialObject*> listAllObjects;
-BinarySplitNode *tree;
-stringstream mystr;
-string prefix_tile_id;
-double left, right, top, bottom;
+int bucket_size;
+long total_count = 0;
+
+string prefix_tile_id = "BSP";
+
+//function defs
+void process_input();
+bool read_input(struct partition_op & partop);
+extern void update_partop_info(struct partition_op & partop, 
+	string uppertileid, string newprefix);
+extern void cleanup(struct partition_op & partop);
+extern bool extract_params_partitioning(int argc, char** argv, 
+	struct partition_op & partop);
 
 // main method
-int main(int ac, char** av) {
+int main(int argc, char** argv) {
 	cout.precision(15);
-
-	try {
-		po::options_description desc("Options");
-		desc.add_options()
-			("help", "this help message")
-			("bucket,b", po::value<int>(&bucket_size), "Expected bucket size");
-
-		po::variables_map vm;        
-		po::store(po::parse_command_line(ac, av, desc), vm);
-		po::notify(vm);    
-
-		if ( vm.count("help") || ! vm.count("bucket") ) {
-			cerr << desc << endl;
-			return 0; 
-		}
-
-		// Adjust bucket size
+	struct partition_op partop;
+	if (!extract_params_partitioning(argc, argv, partop)) {
 		#ifdef DEBUG
-		cerr << "Bucket size: "<<bucket_size <<endl;
+		cerr << "Fail to extract parameters" << endl;
 		#endif
+		return -1;
 	}
-	catch(exception& e) {
-		cerr << "error: " << e.what() << "\n";
-		return 1;
-	}
-	catch(...) {
-		cerr << "Exception of unknown type!\n";
-		return 1;
-	}
-	// argument parsing is done here.
-
-
-	if (!readInput()) {
+	bucket_size = partop.bucket_size;   
+	if (!read_input(partop)) {
 		cerr << "Error reading input in" << endl;
 		return -1;
 	}
-
-	#ifdef DEBUGTIME
-	Timer t; 
-	#endif
-	processInput();
-	
-
-	#ifdef DEBUGTIME
-	double elapsed_time = t.elapsed();
-	cerr << "stat:ptime," << bucket_size << COMMA << elapsed_time << endl;
-	#endif
-
-	// Memeory cleanup here. 
-	// delete the stuff inside your vector
-	//
-	for (vector<SpatialObject*>::iterator it = listAllObjects.begin(); it != listAllObjects.end(); it++) 
-		delete *it;
-	
-	
-	for(vector<BinarySplitNode*>::iterator it = leafNodeList.begin(); it != leafNodeList.end(); it++ ) {
-		(*it)->objectList.clear();
-		delete *it;
-
-	}
-
-	delete tree;
-
-	listAllObjects.clear(); 
-	leafNodeList.clear();
-
+	//cerr << total_count << endl;
 	return 0;
 }
 
-void processInput() {
-	BinarySplitNode *tree = new BinarySplitNode(0.0, 1.0, 1.0, 0.0, 0);
+void process_input(struct partition_op &partop) {
+	BinarySplitNode *tree = new BinarySplitNode(partop.low[0], 
+		partop.low[1], partop.high[0], partop.high[1], 0);
 	leafNodeList.push_back(tree);
 	for (vector<SpatialObject*>::iterator it = listAllObjects.begin(); it != listAllObjects.end(); it++) {
 		tree->addObject(*it);
-  	}
+	}
 
-	int tid = 1; //bucket id
+	int tid = 0; //bucket id
 	//int countLeaf = 0;
 	for(vector<BinarySplitNode*>::iterator it = leafNodeList.begin(); it != leafNodeList.end(); it++ ) {
 		BinarySplitNode *tmp = *it;
 		if (tmp->isLeaf) {
-			// cout << ++countLeaf << SPACE << tmp->left << SPACE  << tmp->bottom 
-			//    << SPACE << tmp->right << SPACE << tmp->top << SPACE << tmp->size << endl ;
-
 			/* Composite key */
-			cout << prefix_tile_id << BAR << tid 
-				<< TAB << tmp->left << TAB << tmp->bottom << TAB
-				<< tmp->right << TAB << tmp->top << endl;
+			cout << partop.prefix_tile_id << tid 
+				<< TAB << tmp->low[0] << TAB << tmp->low[1] << TAB
+				<< tmp->high[0] << TAB << tmp->high[1] 
+				#ifdef DEBUG
+				<< TAB << tmp->size 
+				#endif
+				<< endl;
 			tid++;
 		}
 	}
-}
 
+	// Memory cleanup here. 
 
-bool readInput() {
-	string input_line;
-
-	while (cin && getline(cin, input_line)) {
-		mystr.str(input_line);
-		mystr.clear();
-
-		SpatialObject *obj = new SpatialObject(0, 0, 0, 0);
-		mystr >> prefix_tile_id >> obj->left >> obj->bottom >> obj->right >> obj->top;
-		listAllObjects.push_back(obj);
-		//    cerr << obj->left << TAB << obj->right << TAB << obj->top << TAB << obj->bottom << endl;
-
+	for (vector<SpatialObject*>::iterator it = listAllObjects.begin(); it != listAllObjects.end(); it++) { 
+		delete *it;
 	}
 
+	for(vector<BinarySplitNode*>::iterator it = leafNodeList.begin(); it != leafNodeList.end(); it++ ) {
+	//	(*it)->objectList.clear();
+		delete *it;
 
-	return true;
+	}
+	listAllObjects.clear(); 
+	leafNodeList.clear();
+	//delete tree;
 }
 
+bool read_input(struct partition_op &partop) {
+	string input_line;
+	string prevtileid = "";
+	string tile_id;
+	vector<string> fields;
+	double low[2];
+	double high[2];
+
+	partop.object_count = 0;
+	while (cin && getline(cin, input_line) && !cin.eof()) {
+		try {
+			istringstream ss(input_line);
+			ss >> tile_id >> low[0] >> low[1] >> high[0] >> high[1];
+
+			if (prevtileid.compare(tile_id) != 0 && prevtileid.size() > 0) {
+				update_partop_info(partop, prevtileid, prevtileid  + prefix_tile_id);
+				process_input(partop);
+				// total_count += partop.object_count;
+				partop.object_count = 0;
+			}
+			prevtileid = tile_id;
+			// Create objects
+			SpatialObject *obj = new SpatialObject(low[0], low[1], high[0], high[1]);
+
+			listAllObjects.push_back(obj);
+
+			fields.clear();
+			partop.object_count++;
+		} catch (...) {
+
+		}
+	}
+	if (partop.object_count > 0) {
+		// Process last tile
+		if (partop.region_mbbs.size() == 1) {
+			update_partop_info(partop, prevtileid, prefix_tile_id);
+		} else {
+			// First level of partitioning
+			update_partop_info(partop, prevtileid, prevtileid + prefix_tile_id);
+		}
+		process_input(partop);
+	}
+	//total_count += partop.object_count;
+	cleanup(partop);
+	return true;
+}
 

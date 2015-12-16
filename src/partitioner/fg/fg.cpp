@@ -6,7 +6,10 @@
 #include <map>
 #include <cstdlib> 
 #include "../../common/string_constants.h"
+#include "../../common/tokenizer.h"
 #include "../../common/Timer.hpp"
+#include "../../common/partition_structs.h"
+#include "../../common/partition_params.h"
 #include <boost/program_options.hpp>
 
 using namespace std;
@@ -14,139 +17,138 @@ using namespace std;
 namespace po = boost::program_options;
 
 //function defs
-bool readInput();
-void generatePartitions();
+bool read_input(struct partition_op & partop);
+void generate_partitions(struct partition_op & partop);
+extern void update_partop_info(struct partition_op & partop, string uppertileid, string newprefix);
+extern void cleanup(struct partition_op & partop);
+extern bool extract_params_partitioning(int argc, char** argv, 
+	struct partition_op & partop);
 
 // global vars 
-int bucket_size;
 string prefix_tile_id = "FG";
-
-/* Dimensions are set to invalid configs to check for parameter parsing */
-double space_left = 0;
-double space_right = -1;
-double space_top = 0;
-double space_bottom = -1;
-
-int num_x_splits = -1;
-int num_y_splits = -1;
-long objectCount = 0;
+string cache_file_name;
 
 // main method
-int main(int ac, char** av) {
+int main(int argc, char** argv) {
 	cout.precision(15);
-	int numxsplits;
-
-	try {
-		po::options_description desc("Options");
-		desc.add_options()
-			("help", "this help message")
-			("bucket,b", po::value<int>(&bucket_size), "Expected bucket size")
-			("min_x,k", po::value<double>(&space_left), "(Optional) Spatial min x")
-			("min_y,l", po::value<double>(&space_bottom), "(Optional) Spatial min y")
-			("max_x,m", po::value<double>(&space_right), "(Optional) Spatial max x")
-			("max_y,n", po::value<double>(&space_top), "(Optional) Spatial max y")
-			("num_x,x", po::value<int>(&(num_x_splits)), "(Optional) Number of splits along x")
-			("num_y,y", po::value<int>(&(num_y_splits)), "(Optional) Number of splits along y");
-
-		po::variables_map vm;        
-		po::store(po::parse_command_line(ac, av, desc), vm);
-		po::notify(vm);    
-
-		if ( vm.count("help") || (! vm.count("bucket"))) {
-			cerr << desc << endl;
-			return 0; 
-		}
-
-		// Adjust bucket size
-		#ifdef DEBUG
-		cerr << "Bucket size: " << bucket_size <<endl;
-		#endif
-	}
-	catch(exception& e) {
-		cerr << "error: " << e.what() << "\n";
-		return 1;
-	}
-	catch(...) {
-		cerr << "Exception of unknown type!\n";
-		return 1;
-	}
-	// argument parsing is done here.
-
-
-	if (!readInput()) {
-		cerr << "Error reading input in" << endl;
+	struct partition_op partop;
+	if (!extract_params_partitioning(argc, argv, partop)) {
+#ifdef DEBUG
+		cerr << "Fail to extract parameters" << endl;
+#endif
 		return -1;
 	}
 
-	#ifdef DEBUGTIME
+	if (!read_input(partop)) {
+		cerr << "Error reading input in" << endl;
+		return -1;
+	}
+#ifdef DEBUGTIME
 	Timer t; 
-	#endif
-
-	generatePartitions();	
+#endif
 
 	return 0;
 }
 
-void generatePartitions() {
-	double span_x, span_y;
-
-	int tid = 1; //tile id
-	if (space_left > space_right || space_bottom > space_top) {
-		span_x = span_y = 1.0;
-	} else {
-		span_x = space_right - space_left;
-		span_y = space_top - space_bottom;
+void generate_partitions(struct partition_op & partop) {
+	if (partop.object_count == 0) {
+		return;
 	}
 
-	#ifdef DEBUG
-	cerr << "Number of x splits: " << num_x_splits << endl;
-	cerr << "Number of y splits: " << num_y_splits << endl;
-	#endif	
+	int bucket_size = partop.bucket_size;
+	double span[NUMBER_DIMENSIONS];
+	double region_width[NUMBER_DIMENSIONS];
+	int num_splits[NUMBER_DIMENSIONS];
+	int k;
+	int tid = 0;
 
-	if (num_x_splits < 0 || num_y_splits < 0) {
-		/* Number of splits are not set */
-		if (span_y > span_x) {
-			// We prefer to split into more-square regions than long rectangles
-			num_y_splits = max(ceil(sqrt(static_cast<double>(objectCount) / bucket_size 
-				* span_y / span_x)), 1.0);	
-			num_x_splits = max(ceil(static_cast<double>(objectCount) / bucket_size 
-				/ num_y_splits), 1.0);
-		} else {
-			num_x_splits = max(ceil(sqrt(static_cast<double>(objectCount) / bucket_size 
-				* span_x / span_y)), 1.0);	
-			num_y_splits = max(ceil(static_cast<double>(objectCount) / bucket_size 
-				/ num_x_splits), 1.0);
-		}
-	}	
+	for (k = 0; k < NUMBER_DIMENSIONS; k++) {
+		span[k] = partop.high[k] - partop.low[k];
+	}
 
-	#ifdef DEBUG
-	cerr << "Number of x splits: " << num_x_splits << endl;
-	cerr << "Number of y splits: " << num_y_splits << endl;
-	#endif	
+#ifdef DEBUG
+	cerr << "Spans " << span[1] << TAB << span[0] << endl; 
+	cerr << "Object count: " << partop.object_count;
+#endif
 
-	/* num_x_splits and num_y_splits should have been set by here */
-	double width_x = 1.0 / num_x_splits;
-	double width_y = 1.0 / num_y_splits;
-	for (int i = 0; i < num_x_splits; i++) {
-		for (int j = 0; j < num_y_splits; j++) {
-			cout << prefix_tile_id << BAR << tid 
-				<< TAB << i * width_x  << TAB << j * width_y << TAB
-				<< (i + 1) * width_x << TAB << (j + 1) * width_y << endl;
+
+	/* Number of splits are not set */
+	if (span[1] > span[0]) {
+		// We prefer to split into more-square regions than long rectangles
+		num_splits[1] = max(ceil(sqrt(static_cast<double>(partop.object_count) / bucket_size 
+						* span[1] / span[0])), 1.0);	
+		num_splits[0] = max(ceil(static_cast<double>(partop.object_count) / bucket_size 
+					/ num_splits[1]), 1.0);
+	} else {
+		num_splits[0] = max(ceil(sqrt(static_cast<double>(partop.object_count) / bucket_size 
+						* span[0] / span[1])), 1.0);	
+		num_splits[1] = max(ceil(static_cast<double>(partop.object_count) / bucket_size 
+					/ num_splits[0]), 1.0);
+	}
+#ifdef DEBUG
+	cerr << "Number splits: " << TAB << num_splits[0] << TAB << num_splits[1] << endl;
+#endif
+
+	for (k = 0; k < NUMBER_DIMENSIONS; k++) {
+		region_width[k] = span[k] / num_splits[k];
+	}
+
+	for (int i = 0; i < num_splits[0]; i++) {
+		for (int j = 0; j < num_splits[1]; j++) {
+			cout << partop.prefix_tile_id << tid
+				<< TAB << (i * region_width[0] + partop.low[0])
+				<< TAB << (j * region_width[1] + partop.low[1])
+				<< TAB << ((i + 1) * region_width[0] + partop.low[0])
+				<< TAB << ((j + 1) * region_width[1] + partop.low[1])
+				<< endl;
 			tid++;
 		}
-	} 
-
+	}
 
 }
 
-bool readInput() {
+bool read_input(struct partition_op &partop) {
 	string input_line;
+	string prevtileid = "";
+	string tile_id;
+	vector<string> fields;
 
-	while (cin && getline(cin, input_line)) {
-		objectCount++;
+	partop.object_count = 0;
+	while (cin && getline(cin, input_line) && !cin.eof()) {
+		try {
+		tokenize(input_line, fields, TAB, true);
+		if (fields.size() < 5) {
+			continue;
+		}
+		tile_id = fields[0];
+
+		//cerr << "Field id: " << fields[0] << endl;
+		if (prevtileid.compare(tile_id) != 0 && prevtileid.size() > 0) {
+		//	cerr << "Processing old field" << prevtileid << TAB << fields[0] <<  endl;
+			update_partop_info(partop, prevtileid, prevtileid  + prefix_tile_id);
+			generate_partitions(partop);
+			partop.object_count = 0;
+		}
+		prevtileid = tile_id;
+
+		fields.clear();
+		partop.object_count++;
+		} catch (...) {
+
+		}
 	}
-
+	if (partop.object_count > 0) {
+		// Process last tile
+		if (partop.region_mbbs.size() == 1) {
+			update_partop_info(partop, prevtileid, prefix_tile_id);
+		} else {
+			// First level of partitioning
+			update_partop_info(partop, prevtileid, prevtileid + prefix_tile_id);
+		}
+		generate_partitions(partop);
+	}
+	cleanup(partop);
 	return true;
 }
 
-	
+

@@ -1,131 +1,112 @@
 
 /* Containing methods to extract parameters and store them in query operator */
 #include <iostream>
+#include <fstream>
 #include <cstring>
 #include <cmath>
 #include <map>
+#include <iterator>
 #include <cstdlib> 
 #include <vector>
+#include <boost/program_options.hpp>
+
+#define NUMBER_DIMENSIONS 2
 
 using namespace std;
+namespace po = boost::program_options;
+
+bool read_partition_file(struct partition_op &partop);
+void init_params_partitioning(struct partition_op & partop);
+void update_partop_info(struct partition_op & partop, string uppertileid, string newprefix);
 
 void init_params_partitioning(struct partition_op & partop) {
 	partop.to_be_normalized = false;
 	partop.to_be_denormalized = false;
-	partop.offset = 1;
-	partop.parallel_partitioning = false;
+	partop.offset = 1; // Default offset
 }
 
-/* Display help message to users */
-void usage() {
-	cerr  << endl << "Usage: program_name[OPTIONS]" << endl << "OPTIONS:" << endl;
-	cerr << TAB << "-a, --min_x" << TAB << "Minimum of space x" << endl;
-	cerr << TAB << "-b, --min_y" << TAB << "Minimum of space y" << endl;
-	cerr << TAB << "-c, --max_x" << TAB << "Maximum of space x" << endl;
-	cerr << TAB << "-d, --max_y" << TAB << "Maximum of space y" << endl;
-	cerr << TAB << "-f,  --offset" << TAB <<  "The number of field \
-to be offset from the start of MBR" << endl;
-	cerr << TAB << "-n, --norm"  << TAB << "Normalize the MBBs." << endl;
-	cerr << TAB << "-o, --denorm"  << TAB << "Denormalize the MBBs \
-(Mutually exclusive with option -n)" << endl;
+// Read the cache file containing MBB of regions
+bool read_partition_file(struct partition_op &partop) {
+	string inputline;
+	string tile_id;
+	ifstream infile(partop.file_name);
+
+	while (getline(infile, inputline)) {
+		std::istringstream ss(inputline);
+		struct mbb_info *tmp = new struct mbb_info();
+		if (!(ss >> tile_id >> tmp->low[0] >> tmp->low[1] >> tmp->high[0] >> tmp->high[1])) { 
+			// Incorrect parsing
+			return false;
+		}
+
+		partop.region_mbbs[tile_id] = tmp;
+	}
+	// Update the global information
+	if (partop.region_mbbs.size() == 1) {
+		struct mbb_info *tmp = partop.region_mbbs.begin()->second;
+		partop.low[0] = tmp->low[0];
+		partop.low[1] = tmp->low[1];
+		partop.high[0] = tmp->high[0];
+		partop.high[1] = tmp->high[1];
+	}
+
+	return true;
 }
 
+
+void update_partop_info(struct partition_op & partop, string uppertileid, string newprefix) {
+	partop.prefix_tile_id = newprefix;
+	if (partop.region_mbbs.size() > 1) {
+		struct mbb_info *tmp = partop.region_mbbs[uppertileid]; 
+		// cerr << "Updating info :" << tmp->low[0] << TAB << tmp->low[1] << TAB 
+		// << tmp->high[0] << TAB << tmp->high[1] << endl;
+		partop.low[0] = tmp->low[0];
+		partop.low[1] = tmp->low[1];
+		partop.high[0] = tmp->high[0];
+		partop.high[1] = tmp->high[1];
+	}
+}
 
 /* Extract parameters for partitioning */
-bool extract_params_partitioning(int argc, char** argv, struct partition_op & partop){ 
+bool extract_params_partitioning(int ac, char** av, struct partition_op & partop){ 
 	init_params_partitioning(partop);
-	/* getopt_long stores the option index here. */
-	int option_index = 0;
-	/* getopt_long uses opterr to report error*/
-	opterr = 0 ;
-	struct option long_options[] =
-	{
-		{"min_x",   required_argument, 0, 'a'},
-		{"min_y",     required_argument, 0, 'b'},
-		{"max_x",     required_argument, 0, 'c'},
-		{"max_y",     required_argument, 0, 'd'},
-		{"norm",     required_argument, 0, 'n'},
-		{"denorm",     required_argument, 0, 'o'},
-		{"offset",     required_argument, 0, 'f'},
-		{"file_name",     required_argument, 0, 'z'},
-		{0, 0, 0, 0}
-	};
+	try {
+		po::options_description desc("Options");
+		desc.add_options()
+			("help", "this help message")
+			("norm", "Normalize the data")
+			("denorm", "Denormalize the data")
+			("bucket,b", po::value<long>(&partop.bucket_size), "Expected bucket size")
+			("offset,f", po::value<int>(&partop.offset), "Offset from where MBB starts")      
+			("cachefilename,c", po::value<string>(&(partop.file_name)), "(Optional) Name of cache file")
+			("min_x,k", po::value<double>(&(partop.low[0])), "(Optional) Spatial min x")
+			("min_y,l", po::value<double>(&(partop.low[1])), "(Optional) Spatial min y")
+			("max_x,m", po::value<double>(&(partop.high[0])), "(Optional) Spatial max x")
+			("max_y,n", po::value<double>(&(partop.high[1])), "(Optional) Spatial max y");
+		po::variables_map vm;        
+		po::store(po::parse_command_line(ac, av, desc), vm);
+		po::notify(vm);   
 
-	int c;
-	while ((c = getopt_long (argc, argv, "a:b:c:d:f:z:no", long_options, &option_index)) != -1){
-		switch (c)
-		{
-			case 0:
-				/* If this option set a flag, do nothing else now. */
-				if (long_options[option_index].flag != 0)
-					break;
-				cout << "option " << long_options[option_index].name ;
-				if (optarg)
-					cout << "a with arg " << optarg ;
-				cout << endl;
-				break;
-
-			case 'a':
-				partop.min_x = atof(optarg);
-				#ifdef DEBUG
-					cerr << "Space min_x: " << partop.min_x << endl;
-                                #endif
-				break;
-			case 'b':
-				partop.min_y = atof(optarg);
-				#ifdef DEBUG
-					cerr << "Space min_y: " << partop.min_y << endl;
-                                #endif
-				break;
-			case 'c':
-				partop.max_x = atof(optarg);
-				#ifdef DEBUG
-					cerr << "Space max_x: " << partop.max_x << endl;
-                                #endif
-				break;
-			case 'd':
-				partop.max_y = atof(optarg);
-				#ifdef DEBUG
-					cerr << "Space max_y: " << partop.max_y << endl;
-                                #endif
-				break;
-			case 'f':
-				partop.offset = atoi(optarg);
-				#ifdef DEBUG
-					cerr << "Space offset: " << partop.offset << endl;
-                                #endif
-				break;
-			case 'n':
-				partop.to_be_normalized = true;
-				#ifdef DEBUG
-					cerr << "To-be-normalized:" << partop.to_be_normalized << endl;
-                                #endif
-				break;
-
-			case 'o':
-				partop.to_be_denormalized = true;
-				#ifdef DEBUG
-					cerr << "To-be-denormalized: " << partop.to_be_denormalized << endl;
-                                #endif
-				break;
-			
-			case 'z':
-				partop.parallel_partitioning = true;
-				partop.file_name = optarg;
-				#ifdef DEBUG
-					cerr << "Use index file:" << partop.file_name << endl;
-                                #endif
-				break;
-
-			case '?':
-				return false;
-				/* getopt_long already printed an error message. */
-				break;
-
-			default:
-				return false;
+		if (vm.count("norm")) {
+			partop.to_be_normalized = true;
 		}
+		if (vm.count("denorm")) {
+			partop.to_be_denormalized = true;
+		}
+
+		if (vm.count("cachefilename")) {
+			read_partition_file(partop);
+		}
+
+	} catch(exception& e) {
+		cerr << "error: " << e.what() << "\n";
+		return false;
 	}
+	catch(...) {
+		cerr << "Exception of unknown type!\n";
+		return false;
+	}
+
 	if (partop.to_be_denormalized && partop.to_be_normalized) {
 		/* Mutually exclusive options */
 		#ifdef DEBUG
@@ -133,11 +114,14 @@ bool extract_params_partitioning(int argc, char** argv, struct partition_op & pa
 		#endif
 		return false;
 	}
-	if (partop.parallel_partitioning && !partop.file_name) {
-		#ifdef DEBUG
-		cerr << "Invalid index file name" << endl;
-		#endif
-		return false;
-	}
+
 	return true;
+}
+
+void cleanup(struct partition_op & partop){
+	for (std::map<string,struct mbb_info *>::iterator it= partop.region_mbbs.begin();
+			it!= partop.region_mbbs.end(); ++it) {
+		delete it->second;
+	}
+	partop.region_mbbs.clear();
 }

@@ -41,6 +41,10 @@ const int STATS_JACCARD_COEF = -5;
 const int STATS_DICE_COEF = -6;
 const int STATS_TILE_ID = -7;
 const int STATS_MIN_DIST = -8;
+//for 3d
+const int STATS_VOLUME_1 = -9;
+const int STATS_VOLUME_2 = -10;
+const int STATS_INTERSECT_VOLUME = -11;
 
 const string PARAM_STATS_AREA_1 = "area1";
 const string PARAM_STATS_AREA_2 = "area2";
@@ -50,6 +54,10 @@ const string PARAM_STATS_JACCARD_COEF = "jaccard";
 const string PARAM_STATS_DICE_COEF = "dice";
 const string PARAM_STATS_TILE_ID= "tileid";
 const string PARAM_STATS_MIN_DIST = "mindist";
+//for 3d
+const string PARAM_STATS_VOLUME_1 = "volume1";
+const string PARAM_STATS_VOLUME_2 = "volume2";
+const string PARAM_STATS_INTERSECT_VOLUME = "intersect_volume";
 
 
 const string STR_SET_DELIM = ":";

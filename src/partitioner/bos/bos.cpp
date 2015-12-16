@@ -12,11 +12,18 @@
 #include <spatialindex/SpatialIndex.h>
 #include "../../common/string_constants.h"
 #include "../../common/Timer.hpp"
+#include "../../common/tokenizer.h"
+#include "../../common/partition_structs.h"
+#include "../../common/partition_params.h"
 #include <boost/program_options.hpp>
+
+#ifdef DEBUGAREA
+#include "../../common/tile_rectangle.h"
+#endif
+
 
 /* 
  * Boundary-Optimized-Strip Partitioner (BOS)
- *
  * */
 
 using namespace std;
@@ -24,12 +31,31 @@ using namespace SpatialIndex;
 using namespace SpatialIndex::RTree;
 namespace po = boost::program_options;
 
+
+// function prototypes
+bool read_input(struct partition_op & partop);
+void insert(uint64_t id, Region* r);
+void calculateSpatialUniverse();
+float getCostX(uint32_t K);
+float getCostY(uint32_t K);
+Region split_x(uint32_t K, uint32_t & size );
+Region split_y(uint32_t K, uint32_t & size );
+void cleanup(std::vector<uint64_t> & spatial_objects);
+
+extern void update_partop_info(struct partition_op & partop, string uppertileid, string newprefix);
+extern void cleanup(struct partition_op & partop);
+extern bool extract_params_partitioning(int argc, char** argv,
+        struct partition_op & partop);
+
+// Global variables
+Region universe;
+std::unordered_map<uint64_t,Region*> buffer;
+string prefix_tile_id = "BOS";
+vector<Data*> inMemData;
 const uint32_t DIM_X = 0;
 const uint32_t DIM_Y = 1;
 uint64_t TotalEntries = 0;
 
-Region universe;
-std::unordered_map<uint64_t,Region*> buffer;
 
 struct SortRegionAscendingX : public std::binary_function<const uint64_t, const uint64_t, bool>
 {
@@ -60,77 +86,12 @@ std::set<uint64_t, SortRegionAscendingX> xsorted_buffer;
 std::set<uint64_t, SortRegionAscendingY> ysorted_buffer;
 
 
-// functions 
-void insert(uint64_t id, Region* r);
-void calculateSpatialUniverse();
-float getCostX(uint32_t K);
-float getCostY(uint32_t K);
-Region split_x(uint32_t K, uint32_t & size );
-Region split_y(uint32_t K, uint32_t & size );
-void cleanup(std::vector<uint64_t> & spatial_objects);
-
-// main method
-
-int main(int ac, char** av)
-{
-	cout.precision(15);
-
-	uint32_t bucket_size ;
-	string inputPath;
-
-	try {
-		po::options_description desc("Options");
-		desc.add_options()
-			("help", "this help message")
-			("bucket,b", po::value<uint32_t>(&bucket_size), "Expected bucket size");
-
-		po::variables_map vm;        
-		po::store(po::parse_command_line(ac, av, desc), vm);
-		po::notify(vm);    
-
-		if ( vm.count("help") || (! vm.count("bucket")) ) {
-			cerr << desc << endl;
-			return 0; 
-		}
-		#ifdef DEBUG
-		cerr << "Bucket size: "<<bucket_size << endl;
-		#endif
-	}
-	catch(exception& e) {
-		cerr << "error: " << e.what() << "\n";
-		return 1;
-	}
-	catch(...) {
-		cerr << "Exception of unknown type!\n";
-		return 1;
-	}
-
+// Process data in memory
+void process_input(struct partition_op &partop) {
 	uint64_t cc = 0; 
-	vector<Data*> inMemData;
 	string input_line;
-	double low[2], high[2];
 	string str_id;
 	id_type id = 0;
-
-	while (cin && getline(cin, input_line))
-	{
-		istringstream ss(input_line);
-		ss >> str_id >> low[0] >> low[1] >> high[0] >> high[1] ;
-
-		Region r(low, high, 2);
-		Data* d = new RTree::Data(0, 0 , r, id);// store a zero size null poiter.
-		id++;
-		if (d == 0)
-			throw Tools::IllegalArgumentException(
-					"bulkLoadUsingRPLUS: RTree bulk load expects SpatialIndex::RTree::Data entries."
-					);
-		inMemData.push_back(d);
-		cc++; 
-		#ifdef DEBUG
-		if (cc % 100000 == 0)
-			std::cerr << "number of records sorted: " << cc << std::endl;
-		#endif
-	}
 
 	#ifdef DEBUGTIME
 	Timer t;
@@ -165,26 +126,37 @@ int main(int ac, char** av)
 	t.restart(); // reset timer 
 	#endif
 
+	#ifdef DEBUGAREA
+        double area_total = 0;
+        vector<Rectangle*> list_rec;
+	double low[2], high[2], span[2];
+
+        for (int k = 0; k < 2; k++) {
+                 span[k] = partop.high[k] - partop.low[k];
+        }
+        #endif
+
+
 	// loop vars 
 	double cost [] = {0.0, 0.0};
 	uint64_t iteration = 0; 
 	Region pr(universe);
 	uint32_t size = 0;
-	id_type pid = 1;
+	id_type pid = 0;
 	vector<RTree::Data*> tiles;
 
 	while (true)
 	{
 
-		cost [0] = 0.0;
-		cost [1] = 0.0;
+		cost[0] = 0.0;
+		cost[1] = 0.0;
 		size = 0 ;
 		iteration++;
 
-		if (TotalEntries <= bucket_size) {
+		if (TotalEntries <= partop.bucket_size) {
 
-			pr = split_x(bucket_size,size);
-
+			pr = split_x(partop.bucket_size,size);
+			
 			// last partition
 			/*
 			   std::cerr << "Iteration: " << iteration << 
@@ -194,46 +166,81 @@ int main(int ac, char** av)
 			   std::cout << ++pid << " " << pr << endl;
 			   std::cerr << "|objetcs| = " << TotalEntries<< " , |partition| = " << size << std::endl;
 			   */
-			cout << pid << TAB << pr.m_pLow[0] << TAB << pr.m_pLow[1]
+			cout << partop.prefix_tile_id << pid << TAB << pr.m_pLow[0] << TAB << pr.m_pLow[1]
 				<< TAB << pr.m_pHigh[0] << TAB << pr.m_pHigh[1] << endl;
 			tiles.push_back(new RTree::Data(0, 0 , pr, pid++));
+
+			#ifdef DEBUGAREA
+			// Normalize data
+			low[0] = (pr.m_pLow[0] - partop.low[0]) / span[0];	
+			low[1] = (pr.m_pLow[1] - partop.low[1]) / span[1];	
+			high[0] = (pr.m_pHigh[0] - partop.low[0]) / span[0];	
+			high[1] = (pr.m_pHigh[1] - partop.low[1]) / span[1];	
+			area_total += (high[0] - low[0]) * (high[1] - low[1]);
+			list_rec.push_back(new Rectangle(low[0], low[1], high[0], high[1]));
+                	#endif
+
 			break; 
 		}
 
-		cost[DIM_X] = getCostX(bucket_size);
-		cost[DIM_Y] = getCostY(bucket_size);
+		cost[DIM_X] = getCostX(partop.bucket_size);
+		cost[DIM_Y] = getCostY(partop.bucket_size);
 
-		pr = (cost[DIM_X] < cost[DIM_Y] )?  split_x(bucket_size,size) : split_y(bucket_size,size);
+		pr = (cost[DIM_X] < cost[DIM_Y] )?  split_x(partop.bucket_size,size) : split_y(partop.bucket_size,size);
 
+		#ifdef DEBUG
 		// program state 
-		/* std::cerr << "Iteration: " << iteration << 
+		 std::cerr << "Iteration: " << iteration << 
 		   "\tx-cost = " << cost [DIM_X] << 
 		   "\ty-cost = " << cost [DIM_Y] << 
 		   "\tRegion = " << pr << std::endl;
-		   std::cout << ++pid << " " << pr << endl;
-		   */
-		cout << pid << TAB << pr.m_pLow[0] << TAB << pr.m_pLow[1]
+		   std::cout << pid << " " << pr << endl;
+		#endif
+
+		cout << partop.prefix_tile_id << pid << TAB << pr.m_pLow[0] << TAB << pr.m_pLow[1]
 			<< TAB << pr.m_pHigh[0] << TAB << pr.m_pHigh[1] << endl;
 		tiles.push_back(new RTree::Data(0, 0 , pr, pid++));
+		
+		#ifdef DEBUGAREA
+		// Normalize data
+		low[0] = (pr.m_pLow[0] - partop.low[0]) / span[0];	
+		low[1] = (pr.m_pLow[1] - partop.low[1]) / span[1];	
+		high[0] = (pr.m_pHigh[0] - partop.low[0]) / span[0];	
+		high[1] = (pr.m_pHigh[1] - partop.low[1]) / span[1];	
+		area_total += (high[0] - low[0]) * (high[1] - low[1]);
+		list_rec.push_back(new Rectangle(low[0], low[1], high[0], high[1]));
+                #endif
 		//std::cerr << "|objetcs| = " << TotalEntries<< " , |partition| = " << size << std::endl;
 	} // end while
 
 	#ifdef DEBUGTIME
 	elapsed_time += t.elapsed();
-
-	cerr << "stat:ptime," << bucket_size << "," << tiles.size() <<"," << elapsed_time << endl;
-
+	cerr << "stat:ptime," << partop.bucket_size << "," << tiles.size() <<"," << elapsed_time << endl;
 	#endif
+
+	#ifdef DEBUGAREA
+        cerr << "Area total " << area_total << endl;
+        if (list_rec.size() > 0) {
+                cerr << "Area covered: " << findarea(list_rec) << endl;
+        }
+
+        for (vector<Rectangle*>::iterator it = list_rec.begin() ; it != list_rec.end(); ++it) {
+                delete *it;
+        }
+        #endif
+
+
 	//cleanup memory 
-	for (vector<RTree::Data*>::iterator it = tiles.begin() ; it != tiles.end(); ++it) 
+	xsorted_buffer.clear();
+	ysorted_buffer.clear();
+	buffer.clear();
+	for (vector<RTree::Data*>::iterator it = tiles.begin() ; it != tiles.end(); ++it) {
 		delete *it;
-
-	for (vector<Data*>::iterator it = inMemData.begin(); it != inMemData.end(); it++)
+	}
+	for (vector<Data*>::iterator it = inMemData.begin(); it != inMemData.end(); it++) {
 		delete *it; 
-
-	cout.flush();
-	cerr.flush();
-	return 0 ;
+	}
+	inMemData.clear();
 }
 
 // function implementations 
@@ -389,6 +396,7 @@ Region split_x(uint32_t K, uint32_t & size )
 	// return the partition
 	return p;
 }
+
 Region split_y(uint32_t K, uint32_t & size )
 {
 	double c1 [] = {0.0, 0.0};
@@ -445,7 +453,77 @@ void cleanup(std::vector<uint64_t> & spatial_objects)
 		buffer.erase(*it);
 	}
 	TotalEntries = buffer.size();
-
 }
 
+bool read_input(struct partition_op &partop) {
+        string input_line;
+        string prevtileid = "";
+        string tile_id;
+        vector<string> fields;
+        partop.object_count = 0;
+
+	Data *obj;
+	id_type id = 0;
+	double low[2];
+	double high[2];
+
+        while (cin && getline(cin, input_line) && !cin.eof()) {
+                try {
+                        tokenize(input_line, fields, TAB, true);
+			istringstream ss(input_line);
+			ss >> tile_id >> low[0] >> low[1] >> high[0] >> high[1] ;
+
+                        if (prevtileid.compare(tile_id) != 0 && prevtileid.size() > 0) {
+                                update_partop_info(partop, prevtileid, prevtileid  + prefix_tile_id);
+                                process_input(partop);
+                                // total_count += partop.object_count;
+                                partop.object_count = 0;
+                        }
+                        prevtileid = tile_id;
+                        
+			// Create objects
+			Region r(low, high, 2);
+			obj = new RTree::Data(0, 0 , r, id);// store a zero size null poiter.
+			id++;
+			inMemData.push_back(obj);
+
+			fields.clear();
+			partop.object_count++;
+		} catch (...) {
+
+		}
+	}
+	if (partop.object_count > 0) {
+		// Process last tile
+		if (partop.region_mbbs.size() == 1) {
+			update_partop_info(partop, prevtileid, prefix_tile_id);
+		} else {
+			// First level of partitioning
+			update_partop_info(partop, prevtileid, prevtileid + prefix_tile_id);
+		}
+		process_input(partop);
+	}
+	//total_count += partop.object_count;
+	cleanup(partop);
+	return true;
+}
+
+int main(int argc, char** argv)
+{
+	cout.precision(15);
+	struct partition_op partop;
+	if (!extract_params_partitioning(argc, argv, partop)) {
+		#ifdef DEBUG
+		cerr << "Fail to extract parameters" << endl;
+		#endif
+		return -1;
+	}
+	if (!read_input(partop)) {
+		cerr << "Error reading input in" << endl;
+		return -1;
+	}
+	cout.flush();
+	cerr.flush();
+	return 0;
+}
 

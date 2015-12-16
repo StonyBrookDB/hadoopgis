@@ -31,7 +31,6 @@ int main(int argc, char **argv) {
 		#ifdef DEBUG
 			cerr << "Fail to extract parameters" << endl;
 		#endif
-		usage();
 		return -1;
 	}
 

@@ -214,7 +214,9 @@ bool extract_params(int argc, char** argv ){
 	stop.shape_idx_1 = 0;
 	stop.shape_idx_2 = 0 ;
 	stop.join_cardinality = 0;
-	stop.offset = 3; // default value for offset (used in resque)
+	stop.offset = 2; // default value for offset (used in resque)
+
+	stop.drop_join_idx = false;
 
 	stop.prefix_1 = NULL;
 	stop.prefix_2 = NULL;
@@ -227,6 +229,7 @@ bool extract_params(int argc, char** argv ){
 	stop.needs_jaccard = false;
 
 	stop.result_pair_duplicate = true;
+	stop.reading_mbb = false;
 
 	stop.use_earth_distance = false;
 
@@ -236,8 +239,8 @@ bool extract_params(int argc, char** argv ){
 	stop.use_cache_file = false;
 	stop.extract_mbb = false;
 	stop.collect_mbb_stat = false;
-	stop.use_sampling = false;
-	stop.sample_rate = 1.0;
+	//stop.use_sampling = false;
+	//stop.sample_rate = 1.0;
 
 	sttemp.nearest_distances.clear();	
 	sttemp.area1 = -1;
@@ -246,7 +249,7 @@ bool extract_params(int argc, char** argv ){
 	sttemp.intersect_area = -1;
 	sttemp.dice = -1;
 	sttemp.jaccard = -1;
-	sttemp.distance = -1;	
+	sttemp.distance = -1;
 
 	int option_index = 0;
 	/* getopt_long uses opterr to report error*/
@@ -264,17 +267,18 @@ bool extract_params(int argc, char** argv ){
 		{"cachefile",     required_argument, 0, 'c'},
 		{"prefix1",     required_argument, 0, 'a'},
 		{"prefix2",     required_argument, 0, 'b'},
-		{"extract",     required_argument, 0, 'x'},
-		{"collectstat",     required_argument, 0, 's'},
+		{"extract",     no_argument, 0, 'x'},
+		{"mbbread",     no_argument, 0, 'm'},
+		{"dropjoinidx",     no_argument, 0, 'h'},
 		{"offset",     required_argument, 0, 'o'},
-		{"samplerate",     required_argument, 0, 'q'},
+		//{"samplerate",     required_argument, 0, 'q'},
 
 		// Specific to controller only
 		{0, 0, 0, 0}
 	};
 
 	int c;
-	while ((c = getopt_long (argc, argv, "o:p:i:j:d:f:k:r:e:c:a:b:q:xs", long_options, &option_index)) != -1){
+	while ((c = getopt_long (argc, argv, "o:p:i:j:d:f:k:r:e:c:a:b:xmh", long_options, &option_index)) != -1){
 		switch (c)
 		{
 			case 0:
@@ -395,14 +399,21 @@ bool extract_params(int argc, char** argv ){
 					cerr << "Set to extract MBBs: " << stop.extract_mbb << endl;
 				#endif
 				break;
-
-			case 's':
-				stop.collect_mbb_stat = true;
+			
+			case 'm':
+				stop.reading_mbb = true;
 				#ifdef DEBUG
-					cerr << "Collecting mbb stat:  " << stop.collect_mbb_stat << endl;
+					cerr << "Set to extract MBBs: " << stop.extract_mbb << endl;
 				#endif
 				break;
 
+			case 'h':
+				stop.drop_join_idx = true;
+				#ifdef DEBUG
+					cerr << "Dropping join index " << stop.extract_mbb << endl;
+				#endif
+				break;
+			/*
 			case 'q':
 				stop.sample_rate = atof(optarg);
 				stop.use_sampling = true;
@@ -410,7 +421,7 @@ bool extract_params(int argc, char** argv ){
 					cerr << "Sample rate: " << stop.sample_rate << endl;
 				#endif
 				break;
-
+			*/
 			case '?':
 				return false;
 				/* getopt_long already printed an error message. */
@@ -433,12 +444,13 @@ bool extract_params(int argc, char** argv ){
 	#endif
 
 	// query operator validation 
-	if (stop.JOIN_PREDICATE <= 0 ) {
+	/*
+	if (!stop.drop_join_idx && stop.JOIN_PREDICATE <= 0 ) {
 		#ifdef DEBUG 
 		cerr << "Query predicate is NOT set properly. Please refer to the documentation." << endl ; 
 		#endif
 		return false;
-	}
+	}*/
 	// check if distance is set for dwithin predicate
 	if (stop.JOIN_PREDICATE == ST_DWITHIN && stop.expansion_distance == 0.0) { 
 		#ifdef DEBUG 

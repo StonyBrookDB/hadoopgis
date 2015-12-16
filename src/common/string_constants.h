@@ -6,3 +6,4 @@ const std::string BAR = "|";
 const std::string DASH = "-";
 const std::string COMMA = ",";
 const std::string SPACE = " ";
+const std::string SLASH = "/";

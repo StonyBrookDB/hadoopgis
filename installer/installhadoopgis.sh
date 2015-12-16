@@ -51,9 +51,15 @@ do
     esac
 done
 
+# Create a directory for binary/executables
+mkdir -p "$( dirname "${BASH_SOURCE[0]}")/../build"
+
+exit
+
 if [ ! "$incpath" ] && [ ! "$libpath"]; then
 	incpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../built/include" && pwd)"
 	libpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../built/lib" && pwd)"
+	binpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../build/bin" && pwd)"
 #  incpath="$( cd "$( dirname "${BASH_SOURCE[0]}/../built/include" )" && pwd )"
 #  libpath="$( cd "$( dirname "${BASH_SOURCE[0]}/../built/lib" )" && pwd )"
 fi
@@ -72,6 +78,7 @@ echo $libpath
 HADOOPGIS_INC_PATH=$incpath
 HADOOPGIS_LIB_PATH=$libpath
 
+export HADOOPGIS_BIN_PATH=$binpath
 export HADOOPGIS_INC_PATH=$incpath
 export HADOOPGIS_LIB_PATH=$libpath
 

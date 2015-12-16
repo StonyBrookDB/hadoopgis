@@ -7,8 +7,10 @@ source ../hadoopgis.cfg
 mkdir -p tmpData
 
 echo -e "Generating data.Geometry field is 2 for both data sets"
-./datagenerator/generatePolygons.py 0 0 1000 1000 200000 15 3 > tmpData/dataset1.tsv
-./datagenerator/generatePolygons.py 0 0 1000 1000 300000 15 3 > tmpData/dataset2.tsv
+./datagenerator/generatePolygons.py 0 1000 10000 20000 500000 6 2 > tmpData/dataset1.tsv
+./datagenerator/generatePolygons.py 0 1000 10000 20000 800000 6 2 > tmpData/dataset2.tsv
+
+exit
 
 echo -e "Done generating data\n"
 
@@ -52,7 +54,7 @@ echo "object_count:${object_count}"
 echo "total_size:${total_size}"
 
 echo "Computing partition size for block 4MB (data per tile)"
-../build/bin/compute_partition_size 4000 1.0 ${total_size} ${object_count} > tmpData/partition_size.cfg
+../build/bin/compute_partition_size 10000 1.0 ${total_size} ${object_count} > tmpData/partition_size.cfg
 cat tmpData/partition_size.cfg
 source tmpData/partition_size.cfg
 

@@ -44,7 +44,6 @@ clock_t total_reading;
 clock_t total_query_exec;
 
 /* Function prototypes */
-void init();
 void print_stop();
 int join_bucket();
 int execute_query();
@@ -68,50 +67,6 @@ extern double compute_jaccard(double union_area, double intersection_area);
 extern double compute_dice(double area1, double area2, double intersection_area);
 extern double to_radians(double degrees);
 extern double earth_distance(double lat1, double lng1, double lat2, double lng2);
-
-
-/* Initialize default values in query structs (operator and temporary placeholders) */
-/* To be potentially removed to adjust for initialization already 
- * 	been done in param extraction method */
-void init(){
-	stop.use_cache_file = false;
-	// initlize query operator 
-	stop.expansion_distance = 0.0;
-	stop.k_neighbors = 0;
-	stop.JOIN_PREDICATE = 0;
-	stop.shape_idx_1 = 0;
-	stop.shape_idx_2 = 0 ;
-	stop.join_cardinality = 0;
-	stop.offset = 3; // default format or value for offset
-
-	stop.prefix_1 = NULL;
-	stop.prefix_2 = NULL;
-
-	stop.needs_area_1 = false;
-	stop.needs_area_2 = false;
-	stop.needs_union = false;
-	stop.needs_intersect = false;
-	stop.needs_dice = false;
-	stop.needs_jaccard = false;
-
-	stop.result_pair_duplicate = true;
-
-	stop.use_earth_distance = false;
-
-	stop.output_fields.clear();
-	stop.output_fields_set_id.clear();
-
-	sttemp.nearest_distances.clear();
-	
-	sttemp.area1 = -1;
-	sttemp.area2 = -1;
-	sttemp.union_area = -1;
-	sttemp.intersect_area = -1;
-	sttemp.dice = -1;
-	sttemp.jaccard = -1;
-	sttemp.distance = -1;	
-}
-
 
 int execute_query()
 {
@@ -316,15 +271,17 @@ bool join_with_predicate(const Geometry * geom1 , const Geometry * geom2,
 
 	
 	#ifdef DEBUG
+	
 	cerr << "1: (envelope) " << env1->toString() 
 		<< " and actual geom: " << geom1->toString()
 		<< " 2: (envelope)" << env2->toString() 
 		<< " and actual geom: " << geom2->toString() << endl;
+	
 	#endif
 
 	switch (jp){
 		case ST_INTERSECTS:
-			flag = env1->intersects(env2) && geom1->intersects(geom2);
+			flag = geom1->intersects(geom2);
 			break;
 
 		case ST_TOUCHES:
@@ -438,7 +395,6 @@ bool join_with_predicate(const Geometry * geom1 , const Geometry * geom2,
 			if (stop.use_earth_distance
 				&& geom1->getGeometryTypeId() == geos::geom::GEOS_POINT
 				&& geom2->getGeometryTypeId() == geos::geom::GEOS_POINT) 				{
-				cerr <<"got here" << endl;
 				sttemp.distance = get_distance_earth(
 						dynamic_cast<const geos::geom::Point*>(geom1),
 						dynamic_cast<const geos::geom::Point*>(geom2)); 
@@ -526,7 +482,7 @@ void report_result(int i, int j)
 		for (int k = 0; k < sttemp.rawdata[SID_1][i].size(); k++) {
 			sttemp.stream << sttemp.rawdata[SID_1][i][k] << SEP;
 		}
-		for (int k = 0; k < sttemp.rawdata[SID_1][j].size(); k++) {
+		for (int k = 0; k < sttemp.rawdata[stop.sid_second_set][j].size(); k++) {
 			sttemp.stream << SEP << sttemp.rawdata[stop.sid_second_set][j][k];
 		}
 	}
@@ -555,7 +511,8 @@ void obtain_field(int position, int pos1, int pos2)
 	if (stop.output_fields_set_id[position] == SID_1) {
 		sttemp.stream << sttemp.rawdata[SID_1][pos1][stop.output_fields[position]];	
 	}
-	else if (stop.output_fields_set_id[position] == SID_2) {
+	else if (stop.output_fields_set_id[position] == SID_2) { 
+		// Here we actually check for SID_2, not sid_second_set in the case of selfjoin
 		sttemp.stream << sttemp.rawdata[stop.sid_second_set][pos2][stop.output_fields[position]];	
 	}
 	else if (stop.output_fields_set_id[position] == SID_NEUTRAL) {
@@ -624,6 +581,7 @@ int join_bucket()
 		#ifdef DEBUG
 		cerr << "Bucket size: " << len1 << " joining with " << len2 << endl;
 		#endif
+		cerr << "Bucket size: " << len1 << " joining with " << len2 << endl;
 
 		if (len1 <= 0 || len2 <= 0) {
 			return 0;
@@ -683,6 +641,7 @@ int join_bucket()
 			#endif
 			return -1;
 		}
+		cerr << "done building indices" << endl;
 
 		for (int i = 0; i < len1; i++) {		
 			/* Extract minimum bounding box */
@@ -763,7 +722,6 @@ int join_bucket()
 					#endif
 					continue;
 				}
-				
 				const Geometry* geom2 = poly_set_two[vis.matches[j]];
 				const Envelope * env2 = geom2->getEnvelopeInternal();
 
@@ -817,7 +775,9 @@ int join_bucket()
 		#endif
 		return -1;
 	} // end of catch
-	
+
+	cerr << "Done with tile" << endl;
+
 	delete spidx;
 	delete storage;
 	return pairs ;
@@ -827,7 +787,6 @@ int join_bucket()
 int main(int argc, char** argv)
 {
 	int c = 0; // Number of results satisfying the predicate
-	init(); // setting the query operator and temporary variables to default
 
 	if (!extract_params(argc, argv)) {
 		#ifdef DEBUG 

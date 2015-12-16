@@ -1,4 +1,4 @@
-
+#include <iostream>
 // geos
 #include <geos/geom/PrecisionModel.h>
 #include <geos/geom/GeometryFactory.h>
@@ -19,7 +19,8 @@ using namespace std;
 using namespace SpatialIndex;
 
 
-/* Result container for R-tree traversal */
+/* Result container for R-tree traversal 
+ * used for spatial processing (spatialproc) */
 
 
 /* Obtain R-tree MBR of a given geometry (for usage in R-tree indexing)  */
@@ -201,6 +202,8 @@ class GEOSDataStreamFileTile : public IDataStream
 				m_pNext = new RTree::Data(sizeof(double), reinterpret_cast<byte*>(low), r, m_id);
 				/* Use spatialproc struct */
 				stop.id_tiles[m_id] = tile_id;
+			//" " << low[0] << " "
+			//	 	<< low[1] << " " < high[0] << " " << high[1] << endl;
 			}
 			m_id++;
 		}
@@ -280,4 +283,3 @@ class SpaceStreamReader : public IDataStream
 		std::ifstream m_fin;
 		RTree::Data* m_pNext;
 };
-
