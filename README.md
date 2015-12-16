@@ -26,12 +26,17 @@ MapReduce Parallel Indexing/Partitioning Support
 - Single-step Partitioning
 - Two-step Partitioning
 
+Input Data Requirement
+- Each line corresponds to a spatial object.
+- Tab separated file format with a fixed geometry field (and/or temporal field) in Well-Known Text format.
+
 Installation
 - Install all dependencies as listed in dependencies/README.md
 - Execute the following commands: `cd installer` and  `./installhadoopgis.sh` 
 
 Program Execution
-- Invoke `build/bin/queryproc --help` for the supports. Similarly for 3D and spatio-temporal support, invoke `build/bin/queryproc3d --help` and `build/bin/queryproc_3d --help`.
+- Invoke `build/bin/queryproc --help` for the supports. 
+- Similarly for 3D and spatio-temporal support, invoke `build/bin/queryproc3d --help` and `build/bin/queryproc_3d --help`.
 
 ```
 Options:
@@ -58,7 +63,7 @@ Options:
   -h [ --outputpath ] arg   Output path
   --containfile arg         User file containing window used for containment
                             query
-  --containrange arg        Comma separated list of window used for containemtn
+  --containrange arg        Comma separated list of window used for containment
                             query
   -t [ --predicate ] arg    Predicate for spatial join and nn queries [
                             st_intersects | st_touches | st_crosses |
@@ -66,7 +71,7 @@ Options:
                             | st_dwithin | st_within | st_overlaps | st_nearest
                             | st_nearest2 ]
   -s [ --samplingrate ] arg Sampling rate (0, 1]
-  -u [ --partitioner ] arg  Partitioning method ([fg | bsp hc | str | bos | slc
+  -u [ --partitioner ] arg  Partitioning method [fg | bsp hc | str | bos | slc
                             | qt ]
   -v [ --partitioner2 ] arg (Optional) Partitioning for second method [fg | bsp
                             | hc | str | bos | slc | qt ]
@@ -74,5 +79,5 @@ Options:
   -z [ --parapartition ]    Use 2 partitioning steps
   -n [ --numreducers ] arg  The number of reducers
   --removetmp               Remove temporary directories on HDFS
-  --removembb               Remove MBB directory on HDFS
+  --removembb               Remove MBB directory on HDFS.
 ```
