@@ -14,8 +14,11 @@ To compile a source code after modification:
 ```make program_name IFDEFGLAG```
 
 E.g. 
+
 ```make queryproc DEBUG=1```
+
 ```make resque DEBUG=1 DEBUGTIME=1```
+
 ```make fg```
 
 The compiled binaries are stored in `build/bin` directory.
