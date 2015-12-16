@@ -33,6 +33,8 @@ Input Data Requirement
 Installation
 - Install all dependencies as listed in dependencies/README.md
 - Execute the following commands: `cd installer` and  `./installhadoopgis.sh` 
+- Copy the content of directory `built` to the same path on every node on the cluster (to distributed the libraries).
+- Modify your `LD_LIBRARY_PATH` environment variable in `~/.bashrc` to include the above `built` path.
 
 Program Execution
 - Invoke `build/bin/queryproc --help` for the supports. 
