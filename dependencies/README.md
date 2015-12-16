@@ -2,6 +2,12 @@
 
 This directory contains installer scripts for dependencies of HadoopGIS
 First install required libraries as sudo users.
+```
+gcc
+g++
+cmake
+gnuplot (for visualizer)
+```
 
 The following dependencies are installed to the built directory and do not require sudo permission.
 First cd to dependencies directory
