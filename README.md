@@ -83,3 +83,21 @@ Options:
   --removetmp               Remove temporary directories on HDFS
   --removembb               Remove MBB directory on HDFS.
 ```
+To visualize partition boundaries and/or objects, invoke `build/bin/partiton_vis --help`. Note that this might not work well on data set with a large number of objects or very large number of partitions.
+```
+Options:
+  --help                     this help message
+  -p [ --partidxfile ] arg   File name of the partition boundaries in MBB
+                             format. Partition boundaries have random colors.
+  -f [ --offsetpartidx ] arg Field offset for the start of MBB fields. Default
+                             is 1
+  -q [ --objfile ] arg       File name of the objects in MBB format. Objects
+                             have black border.
+  -s [ --spacefile ] arg     File containing the global space information.
+                             Global space info should have the same format as
+                             partition boundary. If none is specified, the
+                             max/min of partition boundaries will be used as
+                             the global space.
+  -o [ --outputname ] arg    Name of the output file. Should contain .png
+                             extension.
+  ```
