@@ -1,4 +1,4 @@
-PARAMOPTS="-i 2 -j 2 -p st_nearest2 -a dataset1 -b dataset2 -k 3"
+PARAMOPTS="-i 2 -j 2 -p st_nearest2 -a dataset1 -b dataset2 -k 12"
 PARAMOPTS2="-o 0 "${PARAMOPTS}" -x"
 PARAMOPTS3=${PARAMOPTS}" -f 1:1,1:2,2:1,2:2,mindist -c tmpData/denormpartition.idx"
 PARAMOPTS4="-o 0 "${PARAMOPTS3}

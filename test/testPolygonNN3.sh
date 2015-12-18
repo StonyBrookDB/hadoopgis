@@ -9,8 +9,8 @@ mkdir -p tmpData
 export num_k="12"
 
 echo -e "Generating data.Geometry field is 2 for both data sets"
-./datagenerator/generatePolygons.py 0 0 1000 1000 $1 15 3 > tmpData/dataset1.tsv
-./datagenerator/generatePolygons.py 0 0 1000 1000 $2 15 3 > tmpData/dataset2.tsv
+./datagenerator/generatePolygons.py 0 0 4000 4000 $1 15 3 > tmpData/dataset1.tsv
+./datagenerator/generatePolygons.py 0 0 4000 4000 $2 15 3 > tmpData/dataset2.tsv
 
 echo -e "Done generating data\n"
 
