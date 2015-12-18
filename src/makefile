@@ -25,9 +25,9 @@ endif
 CC = gcc
 CXX = g++
 
-all: queryproc resque map_obj_to_tile get_space_dimension \
+all: resque resque_dup map_obj_to_tile get_space_dimension \
 	mbb_normalizer duplicate_remover compute_partition_size \
-	hc bsp fg bos
+	hc bsp fg bos preprocess
 
 queryproc: controller/queryproc.cpp \
 	common/resque_constants.h \
@@ -38,6 +38,28 @@ queryproc: controller/queryproc.cpp \
 	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 resque: spatialproc/resque.cpp  \
+	common/resque_constants.h \
+	common/spatialproc_structs.h \
+	common/spatialproc_params.h \
+	common/string_constants.h \
+	common/rtree_traversal.h \
+	common/tokenizer.h \
+	extensions/specialmeasures/pathology_metrics.h \
+	extensions/specialmeasures/geographical.h
+	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+
+resque_dup: spatialproc/resque_dup.cpp  \
+	common/resque_constants.h \
+	common/spatialproc_structs.h \
+	common/spatialproc_params.h \
+	common/string_constants.h \
+	common/rtree_traversal.h \
+	common/tokenizer.h \
+	extensions/specialmeasures/pathology_metrics.h \
+	extensions/specialmeasures/geographical.h
+	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+
+preprocess: spatialproc/preprocess.cpp  \
 	common/resque_constants.h \
 	common/spatialproc_structs.h \
 	common/spatialproc_params.h \
