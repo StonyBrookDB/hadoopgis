@@ -6,6 +6,8 @@ source ../hadoopgis.cfg
 
 mkdir -p tmpData
 
+export num_k="12"
+
 echo -e "Generating data.Geometry field is 2 for both data sets"
 ./datagenerator/generatePolygons.py 0 0 1000 1000 $1 15 3 > tmpData/dataset1.tsv
 ./datagenerator/generatePolygons.py 0 0 1000 1000 $2 15 3 > tmpData/dataset2.tsv
@@ -15,8 +17,7 @@ echo -e "Done generating data\n"
 echo -e "Extracting MBBs"
 
 # Change to predicate of your choice
-PARAMOPTS="-i 2 -j 2 -p st_nearest2 -a dataset1 -b dataset2 -k 3"
-
+PARAMOPTS="-i 2 -j 2 -p st_nearest2 -a dataset1 -b dataset2 -k ${num_k}"
 PARAMOPTS2="-o 0 "${PARAMOPTS}" -x"
 echo "Params for parameter extraction: ${PARAMOPTS2}"
 
@@ -98,7 +99,7 @@ echo "Performing spatial processing"
 # Offset is 3 for reducer (join index and legacy field)
 PARAMOPTS5="-o 3 "${PARAMOPTS3}
 echo ${PARAMOPTS5}
-./../build/bin/resque_dup ${PARAMOPTS5} < tmpData/inputreducer > tmpData/outputreducer
+USE_PRECOMPUTED="true" ./../build/bin/resque_dup ${PARAMOPTS5} < tmpData/inputreducer > tmpData/outputreducer
 echo "Done with spatial processing"
 
 # Simulate MapReduce sorting
@@ -107,7 +108,7 @@ sort tmpData/outputreducer > tmpData/inputmapperboundary
 
 ../build/bin/duplicate_remover uniq < tmpData/inputmapperboundary > tmpData/finalOutput
 
-bash build_knn_index.sh
+bash build_knn_index.sh ${num_k}
 echo "Dataset sizes are - set1: $1, set2: $2"  > sample"$3".txt
 bash run_rsq2.sh false 2>> sample"$3".txt 1>> sample"$3".txt
 bash run_rsq2.sh true 2>> sample"$3".txt 1>> sample"$3".txt
