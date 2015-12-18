@@ -99,7 +99,7 @@ echo "Performing spatial processing"
 # Offset is 3 for reducer (join index and legacy field)
 PARAMOPTS5="-o 3 "${PARAMOPTS3}
 echo ${PARAMOPTS5}
-USE_PRECOMPUTED="true" ./../build/bin/resque_dup ${PARAMOPTS5} < tmpData/inputreducer > tmpData/outputreducer
+USE_PRECOMPUTED="true" ./../build/bin/resque_knn ${PARAMOPTS5} < tmpData/inputreducer > tmpData/outputreducer
 echo "Done with spatial processing"
 
 # Simulate MapReduce sorting

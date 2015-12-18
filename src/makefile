@@ -25,7 +25,7 @@ endif
 CC = gcc
 CXX = g++
 
-all: resque resque_dup map_obj_to_tile get_space_dimension \
+all: resque resque_knn map_obj_to_tile get_space_dimension \
 	mbb_normalizer duplicate_remover compute_partition_size \
 	hc bsp fg bos preprocess
 
@@ -48,7 +48,7 @@ resque: spatialproc/resque.cpp  \
 	extensions/specialmeasures/geographical.h
 	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
-resque_dup: spatialproc/resque_dup.cpp  \
+resque_knn: spatialproc/resque_knn.cpp  \
 	common/resque_constants.h \
 	common/spatialproc_structs.h \
 	common/spatialproc_params.h \
