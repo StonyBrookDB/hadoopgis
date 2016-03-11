@@ -27,7 +27,9 @@ CC = gcc
 CXX = g++
 
 all: queryprocessor_2d resque_2d manipulate_2d \
-	duplicate_remover \
+	duplicate_remover containment_proc\
+	stats_extract_space_dims collect_tile_stat \
+	combine_stat  \
 	hc_2d bsp_2d fg_2d bos_2d slc_2d qt_2d
 
 queryprocessor_2d: framework/queryprocessor_2d.cpp
@@ -51,10 +53,10 @@ duplicate_remover: boundaryhandler/duplicate_remover.cpp
 containment_proc: resque/containment_proc.cpp
 	$(CXX) -std=c++0x -Wno-deprecated $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
-collect_tile_stat: partitionalgo/collect_tile_stat.cpp
+collect_tile_stat: transform/collect_tile_stat.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
-combine_stat: partitionalgo/combine_stat.cpp
+combine_stat: transform/combine_stat.cpp
 	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 fg_2d: partitionalgo/fg/fg_2d.cpp

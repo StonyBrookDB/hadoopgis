@@ -5,25 +5,56 @@
 #include <cstdlib> 
 #include <getopt.h>
 #include <time.h>
-#include "../common/string_constants.h"
-#include "../common/tokenizer.h"
-#include "../common/resque_constants.h"
-#include "../common/spatialproc_structs.h"
-#include "../common/spatialproc_params.h"
-#include "../common/rtree_traversal.h"
+#include <progparams/string_constants.h>
+#include <utilities/tokenizer.h>
+#include <geos/geom/PrecisionModel.h>
+#include <geos/geom/GeometryFactory.h>
+#include <geos/geom/Geometry.h>
+#include <geos/operation/distance/DistanceOp.h>
+#include <geos/geom/Point.h>
+#include <geos/io/WKTReader.h>
+#include <geos/io/WKTWriter.h>
+#include <geos/opBuffer.h>
+#include <spatialindex/SpatialIndex.h>
+
+// Constants used for building the R-tree
+#define FillFactor 0.9
+#define IndexCapacity 10 
+#define LeafCapacity 50
+#define COMPRESS true
+#include <indices/rtree_builder_2d.hpp>
+
+// Constants
+#include <progparams/resque_constants_2d.h>
+
+// Program parameters
+#include <progparams/resque_params_2d.hpp>
 /* This program collect statistics on number of object counts per tile
  * */
 
+using namespace geos;
+using namespace geos::io;
+using namespace geos::geom;
+using namespace geos::operation::buffer;
+using namespace geos::operation::distance;
+using namespace std;
+using namespace SpatialIndex;
 
 /* Function protoypes */
-bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx);
-bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx);
+bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx,
+	struct query_op &stop, struct query_temp &sttemp,
+	std::map<SpatialIndex::id_type, string> *id_tiles);
+bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx,
+	struct query_op &stop, struct query_temp &sttemp,
+	std::map<SpatialIndex::id_type, string> &id_tiles);
 
 /* Included in header file */
 extern void usage();
 
 /* Process standard input and emit objects to their respective partitions */
-bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx) {
+bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx,
+	struct query_op &stop, struct query_temp &sttemp,
+	std::map<SpatialIndex::id_type, string> &id_tiles) {
 	string input_line;
 	vector<string> fields;
 	bool firstLineRead = false;
@@ -58,7 +89,7 @@ bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx) {
 
 	map<int, long> tile_counts;
 	int k;
-	for (k = 0; k < stop.id_tiles.size(); k++) {
+	for (k = 0; k < id_tiles.size(); k++) {
 		tile_counts[k] = 0;
 	}
 	/*
@@ -143,10 +174,12 @@ bool process_input(IStorageManager * &storage, ISpatialIndex * &spidx) {
 }
 
 /* Build indexing on tile boundaries from cache file */
-bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx) {
+bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx, 
+	struct query_op &stop, struct query_temp &sttemp,
+	std::map<SpatialIndex::id_type, string> *id_tiles) {
 	// build spatial index on tile boundaries 
 	id_type  indexIdentifier;
-	GEOSDataStreamFileTile stream(stop.cachefilename); // input from cache file
+	GEOSDataStreamFileTile stream(stop.cachefilename, id_tiles); // input from cache file
 	storage = StorageManager::createNewMemoryStorageManager();
 	spidx   = RTree::createAndBulkLoadNewRTree(RTree::BLM_STR, stream, *storage, 
 			FillFactor,
@@ -160,8 +193,11 @@ bool build_index_tiles(IStorageManager* &storage, ISpatialIndex * &spidx) {
 }
 
 int main(int argc, char **argv) {
+	struct query_op stop;
+	struct query_temp sttemp;
+	std::map<SpatialIndex::id_type, string> id_tiles;
 
-	if (!extract_params(argc, argv)) {
+	if (!extract_params(argc, argv, stop, sttemp)) {
 		#ifdef DEBUG 
 		cerr <<"ERROR: query parameter extraction error." << endl 
 			<< "Please see documentations, or contact author." << endl;
@@ -174,7 +210,7 @@ int main(int argc, char **argv) {
 	IStorageManager * storage = NULL;
 	ISpatialIndex * spidx = NULL;
 
-	if( !build_index_tiles(storage, spidx)) {
+	if( !build_index_tiles(storage, spidx, stop, sttemp, &id_tiles)) {
 		#ifdef DEBUG
 		cerr << "ERROR: Index building on tile structure has failed ." << std::endl;
 		#endif
@@ -186,7 +222,7 @@ int main(int argc, char **argv) {
 		#endif
 	}
 
-	process_input(storage, spidx);
+	process_input(storage, spidx, stop, sttemp, id_tiles);
 
 	/* Clean up indices */
 	delete spidx;

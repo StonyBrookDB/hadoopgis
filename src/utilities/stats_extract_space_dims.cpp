@@ -5,9 +5,8 @@
 #include <cstdlib> 
 #include <getopt.h>
 #include <vector>
-#include "../common/string_constants.h"
-#include "../common/resque_constants.h"
-#include "../common/tokenizer.h"
+#include "progparams/string_constants.h"
+#include "utilities/tokenizer.h"
 
 using namespace std;
 

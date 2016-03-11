@@ -4,7 +4,7 @@
 #include <cstdlib> 
 #include <limits>
 #include <ctime>
-#include "../common/tokenizer.h"
+#include <utilities/tokenizer.h>
 
 using namespace std;
 
