@@ -5,8 +5,8 @@
 #include <cstdlib> 
 #include <getopt.h>
 #include <vector>
-#include "progparams/string_constants.h"
-#include "utilities/tokenizer.h"
+#include <progparams/string_constants.h>
+#include <utilities/tokenizer.h>
 
 using namespace std;
 
@@ -14,29 +14,20 @@ using namespace std;
  *     from input object MBBs
  * Input should be tab separated
  * Offset refers to the start of the min_x, min_y, max_x, max_y sequence
- * The offset is 1 for object MBB (accounting for object ID)
- * The offset is 0 for input coming from a previous get_space_dimension program 
- * Only 1 parameter is the offset (counting from 1)
- *
+ * The offset is always 1
+ *  If the first field is a positive integer, this is the reducer outputting only MBBs
+ *  If the first field is -1, this is the reducer handling space dimensions
  * */
 
 int main(int argc, char **argv) {
-	double min_x;
-	double max_x;
-	double min_y;
-	double max_y;
+	double low[2];
+	double high[2];
 	string input_line;
 
 	/* Count of objects */
 	int count = 0;
-
-	if (argc < 2) {
-		cerr << "Missing offset field. Usage: " << argv[0] << " [offset]" << endl;
-		return -1;
-	}
-
-
-	int offset = strtol(argv[1], NULL, 10) - 1;
+	int offset = 1;
+	int prev_id = 0;
 
 	#ifdef DEBUG
 	cerr << "Offset/The first MBB field (adjusted) is : " << offset << endl;
@@ -44,49 +35,52 @@ int main(int argc, char **argv) {
 
 	vector<string> fields;
 	fields.clear();
+	bool cat_mode = false; // whether this is the reducer outputting only mbbs
 
-	/* Reading the first line */
-	if(cin && getline(cin, input_line) && !cin.eof()) {
-		tokenize(input_line, fields, TAB, true);   
+	int pos = -1;
+	int tile_id;
 
-		min_x = atof(fields[offset].c_str());
-		min_y = atof(fields[offset + 1].c_str());
-		max_x = atof(fields[offset + 2].c_str());
-		max_y = atof(fields[offset + 3].c_str());
-		if (offset == 0) {
-			count = atol(fields[offset + 4].c_str());
-		} else {
-			count = 1;
-		}
-
-		fields.clear();
-	}
-
-	/* Processing remaining lines */
 	while(cin && getline(cin, input_line) && !cin.eof()) {
-		tokenize(input_line, fields, TAB, true);   
+		pos = input_line.find('\t');
+		tile_id = stoi(input_line.substr(0, pos));
+		if (tile_id >= 0 && prev_id >= 0) {
+			cout << 0 << TAB << 0 << input_line.substr(pos) << endl;
+		} else if (tile_id >= 0 && prev_id == -1) {
+			// Reaching the last of space info records
+			cout << "SPACE" << TAB << "T"
+				<< TAB << low[0] << TAB << low[1] 
+				<< TAB << high[0] << TAB << high[1] 
+				<< TAB << count << endl;
 
-		min_x = min(min_x, atof(fields[offset].c_str()));
-		min_y = min(min_y, atof(fields[offset + 1].c_str()));
-		max_x = max(max_x, atof(fields[offset + 2].c_str()));
-		max_y = max(max_y, atof(fields[offset + 3].c_str()));
-
-		if (offset == 0) {
-			count += atol(fields[offset + 4].c_str());
-		} else {
-			count++;
+			// Output the current line as well
+			cout << 0 << TAB << 0 << input_line.substr(pos) << endl;
+		} else if (tile_id == -1) {
+			// Start reading space dimension information
+			tokenize(input_line, fields, TAB, true);
+			if (prev_id == -1) {
+				low[0] = min(low[0], atof(fields[offset].c_str()));
+				low[1] = min(low[1], atof(fields[offset + 1].c_str()));
+				high[0] = max(high[0], atof(fields[offset + 2].c_str()));
+				high[1] = max(high[1], atof(fields[offset + 3].c_str()));
+				count += atol(fields[offset + 4].c_str());
+			} else {
+				low[0] = atof(fields[offset].c_str());
+				low[1] = atof(fields[offset + 1].c_str());
+				high[0] = atof(fields[offset + 2].c_str());
+				high[1] = atof(fields[offset + 3].c_str());
+				count = atol(fields[offset + 4].c_str());
+			}	
+			fields.clear();
 		}
-
-		fields.clear();
+		prev_id = tile_id;
 	}
-
-	/* Output the statistics */
-	if (count > 0) {
-		cout << min_x << TAB << min_y << TAB 
-			<< max_x << TAB << max_y 
+	if (prev_id == -1) {
+		// Reaching the last of space info records
+		cout << "SPACE" << TAB << "T"
+			<< TAB << low[0] << TAB << low[1] 
+			<< TAB << high[0] << TAB << high[1] 
 			<< TAB << count << endl;
 	}
-
 	cout.flush();
 	cerr.flush();
 }

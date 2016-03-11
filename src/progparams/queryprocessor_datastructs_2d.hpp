@@ -7,7 +7,7 @@ const std::string QUERYPROC_CONTAINMENT = "containment";
 const std::string QUERYPROC_JOIN = "spjoin";
 
 const std::string MANIPULATE = "manipulate_2d";
-const std::string SPACE_EXTRACTOR = "stats_extract_space_dims";
+const std::string SPACE_EXTRACTOR = "get_space_dimension";
 const std::string DUPLICATE_REMOVER = "duplicate_remover";
 const std::string STAT_COLLECT_MAPPER = "collect_tile_stat";
 const std::string STAT_COLLECT_REDUCER = "combine_stat";

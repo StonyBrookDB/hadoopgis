@@ -27,25 +27,21 @@ CC = gcc
 CXX = g++
 
 all: queryprocessor_2d resque_2d manipulate_2d \
-	duplicate_remover containment_proc\
-	stats_extract_space_dims collect_tile_stat \
-	combine_stat  \
+	duplicate_remover containment_proc \
+	combine_stat stats_extract_space_dims  \
 	hc_2d bsp_2d fg_2d bos_2d slc_2d qt_2d
 
 queryprocessor_2d: framework/queryprocessor_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 stats_extract_space_dims: utilities/stats_extract_space_dims.cpp
-	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 resque_2d: resque/resque_2d.cpp
 	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 manipulate_2d: transform/manipulate_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
-
-get_space_dimension: utilities/get_space_dimension.cpp
-	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 duplicate_remover: boundaryhandler/duplicate_remover.cpp
 	$(CXX) $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
