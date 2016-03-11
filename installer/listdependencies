@@ -1,0 +1,7 @@
+gcc
+g++
+cmake
+boost
+geos 
+libspatialindex
+cgal (required for 3D, for 2D it is an alternative for geos & libspatialindex combination)

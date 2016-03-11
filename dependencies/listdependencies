@@ -1,7 +1,0 @@
-gcc
-g++
-cmake
-boost
-geos 
-libspatialindex
-cgal (alternative for geos)

@@ -5,8 +5,8 @@
 # Configuring lib and include directories
 usage(){
   echo -e "installhadoopgis.sh [options]\n \
-  -l PATH, --libpath=PATH \t [Optional] Directory path to the lib locations of dependencies (include lib)\n \
-  -i PATH, --incpath=PATH \t [Optional] Directory path to the include locations"
+  -l PATH, --libpath=PATH \t [Optional] Directory paths to the lib locations of dependencies. Multiple paths should be separated by colon.\n \
+  -i PATH, --incpath=PATH \t [Optional] Directory paths to the include locations. Multiple paths should be separated by colon"
   exit 1
 }
 
@@ -53,12 +53,14 @@ done
 
 # Create a directory for binary/executables
 mkdir -p "$( dirname "${BASH_SOURCE[0]}")/../build"
+mkdir -p "$( dirname "${BASH_SOURCE[0]}")/../exlib"
 
 exit
 
+# If they are not defined then use the default locations
 if [ ! "$incpath" ] && [ ! "$libpath"]; then
-	incpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../built/include" && pwd)"
-	libpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../built/lib" && pwd)"
+	incpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../exlib/include" && pwd)"
+	libpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../exlib/lib" && pwd)"
 	binpath="$( cd "$( dirname "${BASH_SOURCE[0]}")/../build/bin" && pwd)"
 #  incpath="$( cd "$( dirname "${BASH_SOURCE[0]}/../built/include" )" && pwd )"
 #  libpath="$( cd "$( dirname "${BASH_SOURCE[0]}/../built/lib" )" && pwd )"

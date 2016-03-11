@@ -2,11 +2,11 @@
 #include <cstring>
 #include <cmath>
 #include <map>
+#include <cstdlib> 
 #include <getopt.h>
 #include <cstdlib>
 #include <vector>
-#include "../common/string_constants.h"
-#include "../common/resque_constants.h"
+#include <progparams/string_constants.h>
 
 using namespace std;
 
