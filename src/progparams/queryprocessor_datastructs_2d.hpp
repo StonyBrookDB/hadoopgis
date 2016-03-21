@@ -6,13 +6,13 @@ const std::string QUERYPROC_PARTITION = "partition";
 const std::string QUERYPROC_CONTAINMENT = "containment";
 const std::string QUERYPROC_JOIN = "spjoin";
 
+// Names of binaries
 const std::string MANIPULATE = "manipulate_2d";
 const std::string SPACE_EXTRACTOR = "get_space_dimension";
 const std::string DUPLICATE_REMOVER = "duplicate_remover";
 const std::string STAT_COLLECT_MAPPER = "collect_tile_stat";
 const std::string STAT_COLLECT_REDUCER = "combine_stat";
 const std::string MBB_SAMPLER = "sampler";
-const std::string CONTAINMENT_PROC = "containment_proc";
 
 const std::string RESQUE = "resque_2d";
 const std::string PARTITION_FG = "fg_2d";

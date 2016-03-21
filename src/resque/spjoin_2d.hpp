@@ -48,7 +48,6 @@ int join_bucket_spjoin(struct query_op &stop, struct query_temp &sttemp) {
 			#endif
 			return -1;
 		}
-		cerr << "done building indices" << endl;
 
 		for (int i = 0; i < len1; i++) {		
 			/* Extract minimum bounding box */
@@ -181,7 +180,8 @@ bool join_with_predicate(
 				}
 
 				/* flag = distance(
-					dynamic_cast<const geos::geom::Point*>(geom1), 						dynamic_cast<const geos::geom::Point*>(geom2) ) 
+					dynamic_cast<const geos::geom::Point*>(geom1), 
+					dynamic_cast<const geos::geom::Point*>(geom2) ) 
 					 <= stop.expansion_distance; */
 			}
 			else {
@@ -197,7 +197,8 @@ bool join_with_predicate(
 				if (NULL == geom_buffer1) {
 					cerr << "NULL: geom_buffer1" << endl;
 				}
-				flag = join_with_predicate(stop, sttemp, geom_buffer1, geom2, env1, env2, ST_INTERSECTS);
+				flag = join_with_predicate(stop, sttemp, geom_buffer1, geom2, 
+					env1, env2, ST_INTERSECTS);
 				delete geom_buffer1;
 				delete buffer_op1;
 			}
@@ -210,13 +211,13 @@ bool join_with_predicate(
 		case ST_OVERLAPS:
 			flag = geom1->overlaps(geom2);
 			break;
-
+		/*
 		case ST_NEAREST:
 		case ST_NEAREST_2:
-			/* Execution only reaches here if this is already the nearest neighbor */
+			// Execution only reaches here if this is already the nearest neighbor
 			flag = true;
 			break;
-
+		*/
 		default:
 			cerr << "ERROR: unknown spatial predicate " << endl;
 			break;

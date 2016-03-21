@@ -1,6 +1,6 @@
 
 bool sp_containment(string programpath, vector<string> input_paths, string output_path,
-	int shp_idx_1, struct framework_vars &fr_vars, 
+	string original_params, struct framework_vars &fr_vars, 
 	char *cachefilename, char *cachefilefullpath) {
 	hdfs_delete(programpath, output_path);
 	vector<string> arr_args = {"hadoop", "jar", fr_vars.streaming_path};
@@ -22,7 +22,7 @@ bool sp_containment(string programpath, vector<string> input_paths, string outpu
 
 	arr_args.push_back("-mapper");
 	stringstream ss;
-	ss << CONTAINMENT_PROC << " -o 0 -i " << shp_idx_1 << " -c " << cachefilename;
+	ss << RESQUE << " -o 0 " << original_params <<  " -c " << cachefilename;
 	arr_args.push_back(ss.str());
 
 	arr_args.push_back("-numReduceTasks");
@@ -150,7 +150,7 @@ bool execute_containment(struct framework_vars &fr_vars) {
 			cerr << "Executing containment" << endl;
 			#endif
 			if (!sp_containment(fr_vars.hadoopcmdpath, input_paths, fr_vars.output_path, 
-				fr_vars.shp_idx_1, fr_vars,
+				fr_vars.shared_params, fr_vars,
 				tmpnameonly, tmpFile)) {
 				#ifdef DEBUG
 				cerr << "Containment failed." << endl;

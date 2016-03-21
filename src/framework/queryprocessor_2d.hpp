@@ -57,7 +57,7 @@ bool sp_join(string programpath, vector<string> &input_paths,
 	char *cachefilename, char *cachefilefullpath);
  
 bool sp_containment(string programpath, vector<string> input_paths, 
-  string output_path, int shp_idx_1, struct framework_vars &fr_vars, 
+  string output_path, string original_params, struct framework_vars &fr_vars, 
 	char *cachefilename = NULL, char *cachefilefullpath = NULL);
 bool duplicate_removal(string hadoopcmdpath, string input_path, 
   string output_path, struct framework_vars &fr_vars);

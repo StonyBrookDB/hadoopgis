@@ -81,6 +81,198 @@ void report_result(struct query_op &stop, struct query_temp &sttemp, int i, int 
 	cout << sttemp.stream.str();
 }
 
+/* Reporting result for the case when processing 1 by 1 object from data set 1
+ *  skip_window_data == true when there is simply a single window query (data set 2)
+ *      only fields from data set 1  will be output
+ *  skip_window_data == false when there are more than one objects in data set 2
+ * */
+void report_result(struct query_op &stop, struct query_temp &sttemp, 
+	vector<string> &set1fields, int j, bool skip_window_data)
+{
+	sttemp.stream.str("");
+	sttemp.stream.clear();
+	/* ID used to access rawdata for the "second" data set */
+
+	if (stop.output_fields.size() == 0) {
+		/* No output fields have been set. Print all fields read */
+		for (int k = 0; k < set1fields.size(); k++) {
+			sttemp.stream << set1fields[k] << SEP;
+		}
+
+		if (!skip_window_data) {
+			for (int k = 0; k < sttemp.rawdata[SID_2][j].size(); k++) {
+				sttemp.stream << SEP << sttemp.rawdata[SID_2][j][k];
+			}
+		}
+	}
+	else {
+		/* Output fields are listed */
+		int k = 0;
+		for (; k < stop.output_fields.size() - 1; k++) {
+	//		cerr << "outputting fields " << stop.output_fields[k];
+			obtain_field(stop, sttemp, k, set1fields, j);
+			sttemp.stream << SEP;
+		}
+		obtain_field(stop, sttemp, k, set1fields, j);
+
+	//		cerr << "outputting fields " << stop.output_fields[k];
+	}
+
+	sttemp.stream << endl;
+	cout << sttemp.stream.str();
+}
+
+
+/* Performs a spatial query processing where set 2 is obtained from the cache file */
+int execute_query_cache_file(struct query_op &stop, struct query_temp &sttemp) {
+	int num_obj_file;
+	int count; // Returns the number
+
+	// Processing variables
+	string input_line; // Temporary line
+	vector<string> fields; // Temporary fields
+	int sid = 0; // Join index ID for the current object
+	int index = -1;  // Geometry field position for the current object
+	string tile_id = ""; // The current tile_id
+	string previd = ""; // the tile_id of the previously read object
+	int tile_counter = 0; // number of processed tiles
+
+	/* GEOS variables for spatial computation */
+	IStorageManager *storage = NULL;
+	ISpatialIndex *spidx = NULL;
+	PrecisionModel *pm = new PrecisionModel();
+	GeometryFactory *gf = new GeometryFactory(pm, OSM_SRID); // default is OSM for spatial application
+	WKTReader *wkt_reader = new WKTReader(gf);
+	Geometry *poly = NULL;
+	Geometry *window = NULL;
+	const Envelope *windowenv = NULL;
+
+	ifstream input(stop.cachefilename);
+
+	sid = SID_2;
+	index = stop.shape_idx_2 ; 
+	num_obj_file = 0;
+
+	// Reading from the cache file
+	while(!input.eof()) {
+		getline(input, input_line);
+		tokenize(input_line, fields, TAB, true);
+
+		/* Handling of objects with missing geometry */
+		if (fields[index].size() <= 0) 
+			continue ; //skip empty spatial object 
+		
+		#ifdef DEBUG
+		cerr << "geometry: " << fields[stop.shape_idx_2]<< endl;
+		#endif  
+
+		/* Parsing polygon input */
+		try { 
+			poly = wkt_reader->read(fields[index]);
+		}
+		catch (...) {
+			cerr << "******Geometry Parsing Error******" << endl;
+			return -1;
+		}
+		sttemp.polydata[sid].push_back(poly);
+		sttemp.rawdata[sid].push_back(fields);
+
+		num_obj_file++;
+
+		fields.clear();
+	}
+	#ifdef DEBUG
+	cerr << "Read " << num_obj_file << " from the cache file." << endl;
+	#endif
+	if (num_obj_file <= 0) {
+		#ifdef DEBUG
+		cerr << "No object in cache file." << endl;
+		#endif
+		return -1; 
+	}
+	
+	if (num_obj_file == 1) {
+		// Single window range query
+		window = poly;
+		windowenv = poly->getEnvelopeInternal();
+	} else {
+		// Build R*-tree index
+
+		/* Build index on the "second data set */
+		map<int, Geometry*> geom_polygons2;
+		geom_polygons2.clear();
+
+		int len2 = sttemp.polydata[SID_2].size();
+		// Make a copy of the vector to map to build index (API restriction)
+		for (int j = 0; j < len2; j++) {
+			geom_polygons2[j] = sttemp.polydata[SID_2][j];
+		}
+
+		/* Handling for special nearest neighbor query */	
+		// build the actual spatial index for input polygons from idx2
+		if (!build_index_geoms(geom_polygons2, spidx, storage)) {
+			#ifdef DEBUG
+			cerr << "Building index on geometries from set 2 has failed" << endl;
+			#endif
+			return -1;
+		}
+
+		// must clear memory of storage and spidx at the end
+	}
+
+	index = stop.shape_idx_1 ; 
+	// Process standard input (dataset 1)
+	while (cin && getline(cin, input_line) && !cin.eof()) {
+		tokenize(input_line, fields, TAB, true);
+		/* Handling of objects with missing geometry */
+		if (fields[index].size() <= 0) 
+			continue ; //skip empty spatial object 
+		
+		#ifdef DEBUG
+		cerr << "geometry: " << fields[stop.shape_idx_1]<< endl;
+		#endif  
+
+		/* Parsing polygon input */
+		try { 
+			poly = wkt_reader->read(fields[index]);
+		}
+		catch (...) {
+			cerr << "******Geometry Parsing Error******" << endl;
+			return -1;
+		}
+		
+		
+		const Envelope * env = poly->getEnvelopeInternal();
+
+		if (num_obj_file == 1) {
+			// Uses a function from spjoin file here
+			if (env->intersects(windowenv) && join_with_predicate(stop, sttemp, poly, 
+				window, env, windowenv, stop.join_predicate)) {
+				report_result(stop, sttemp, fields, 0, true); // the index when there is only 1 object is 0
+			}
+			
+		} else {
+			// For multiple windows and knn
+			//
+			// To be updated
+		}
+		
+		delete poly;
+		fields.clear();
+	}
+
+	// clean up newed objects
+	if (num_obj_file > 1) {
+		delete spidx;
+		delete storage;
+	}
+	delete wkt_reader;
+	delete gf;
+	delete pm;
+	return count;
+}
+
+
 // Performs spatial query on data stored in query_temp using operator query_op
 int execute_query(struct query_op &stop, struct query_temp &sttemp)
 {
@@ -110,12 +302,6 @@ int execute_query(struct query_op &stop, struct query_temp &sttemp)
 	#ifdef DEBUGTIME
 	start_reading_data = clock();
 	#endif
-
-	/*
-	if (stop.use_cache_file) {
-		read_cache_file();
-	}
-	*/
 
 	while (cin && getline(cin, input_line) && !cin.eof()) {
 		tokenize(input_line, fields, TAB, true);
@@ -218,7 +404,6 @@ int execute_query(struct query_op &stop, struct query_temp &sttemp)
 	return tile_counter;
 }
 
-
 /* Release objects in memory (for the current tile/bucket) */
 void release_mem(struct query_op &stop, struct query_temp &sttemp, int maxCard) {
 	if (stop.join_cardinality <= 0) {
@@ -235,42 +420,6 @@ void release_mem(struct query_op &stop, struct query_temp &sttemp, int maxCard) 
     		sttemp.rawdata[delete_index].clear();
   	}
 }
-
-/* Read in data in cache file into rawdata and polydata */
-void read_cache_file(struct query_op &stop) {
-	string input_line; // Temporary line
-	vector<string> fields; // Temporary fields
-	int sid;
-	string tile_id;
-	ifstream input(stop.cachefilename);
-
-	while(!input.eof()) {
-		getline(input, input_line);
-		tokenize(input_line, fields, TAB, true);
-		sid = atoi(fields[1].c_str());
-		tile_id = fields[0];
-		/**************** To be completed in newer version */
-	}
-
-}
-
-/* Create an R-tree index on a given set of polygons */
-bool build_index_geoms(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spidx, IStorageManager* & storage) {
-	// build spatial index on tile boundaries 
-	id_type  indexIdentifier;
-	GEOSDataStream stream(&geom_polygons);
-	storage = StorageManager::createNewMemoryStorageManager();
-	spidx   = RTree::createAndBulkLoadNewRTree(RTree::BLM_STR, stream, *storage, 
-			FillFactor,
-			IndexCapacity,
-			LeafCapacity,
-			2, 
-			RTree::RV_RSTAR, indexIdentifier);
-
-	// Error checking 
-	return spidx->isIndexValid();
-}
-
 
 /* Compute distance between two points using Euclidian distance */
 double get_distance(const geos::geom::Point * p1, const geos::geom::Point * p2) 
@@ -328,6 +477,36 @@ void obtain_field(struct query_op &stop, struct query_temp &sttemp,
 	}
 }
 
+void obtain_field(struct query_op &stop, struct query_temp &sttemp, 
+	int position, vector<string> &set1fields, int pos2)
+{
+	//cerr << "Set id" << stop.output_fields_set_id[position] << endl;
+	if (stop.output_fields_set_id[position] == SID_1) {
+		sttemp.stream << set1fields[stop.output_fields[position]];	
+	}
+	else if (stop.output_fields_set_id[position] == SID_2) {
+		sttemp.stream << sttemp.rawdata[SID_2][pos2][stop.output_fields[position]];	
+	}
+}
+
+/* Create an R-tree index on a given set of polygons */
+bool build_index_geoms(map<int,Geometry*> & geom_polygons, ISpatialIndex* & spidx, IStorageManager* & storage) {
+	// build spatial index on tile boundaries 
+	id_type  indexIdentifier;
+	GEOSDataStream stream(&geom_polygons);
+	storage = StorageManager::createNewMemoryStorageManager();
+	spidx   = RTree::createAndBulkLoadNewRTree(RTree::BLM_STR, stream, *storage, 
+			FillFactor,
+			IndexCapacity,
+			LeafCapacity,
+			2, 
+			RTree::RV_RSTAR, indexIdentifier);
+
+	// Error checking 
+	return spidx->isIndexValid();
+}
+
+
 /* 
  *  Perform spatial computation on a given tile with data 
  *   located in polydata and rawdata
@@ -362,27 +541,36 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	switch (stop.join_cardinality) {
-		case 1:
-		case 2:
-			// adjusting set id
-			stop.sid_second_set = stop.join_cardinality == 1 ? SID_1 : SID_2;
-			c = execute_query(stop, sttemp);
-			break;
 
-		default:
-			#ifdef DEBUG 
-			std::cerr <<"ERROR: join cardinality does not match engine capacity." << std::endl ;
-			#endif
-			return 1;
+	// Query execution	
+	if (stop.use_cache_file) {
+		// Containment and/or reading the 2nd data set from a file
+		stop.sid_second_set = SID_2;
+		c = execute_query_cache_file(stop, sttemp);
+	} else {
+		// Spatial join and nearest neighbors from joint datasets (stdin)
+		switch (stop.join_cardinality) {
+			case 1:
+			case 2:
+				// adjusting set id
+				stop.sid_second_set = stop.join_cardinality == 1 ? SID_1 : SID_2;
+				c = execute_query(stop, sttemp);
+				break;
+			default:
+				#ifdef DEBUG 
+				cerr <<"ERROR: join cardinality does not match engine capacity." << endl ;
+				#endif
+				return 1;
+		}
 	}
+
 	if (c >= 0 ) {
 		#ifdef DEBUG 
-		std::cerr <<"Query Load: [" << c << "]" <<std::endl;
+		cerr << "Query Load: [" << c << "]" << endl;
 		#endif
 	} else {
 		#ifdef DEBUG 
-		std::cerr <<"Error: ill formatted data. Terminating ....... " << std::endl;
+		std::cerr <<"Error: ill formatted data. Terminating ....... " << endl;
 		#endif
 		return 1;
 	}
