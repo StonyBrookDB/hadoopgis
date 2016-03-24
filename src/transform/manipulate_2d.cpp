@@ -29,16 +29,6 @@ clock_t start_query_exec;
 clock_t total_reading;
 clock_t total_query_exec;
 
-/* Function protoypes */
-bool build_index_tiles(struct query_op &stop, struct query_temp &sttemp,
-	IStorageManager* &storage, ISpatialIndex * &spidx,
-	std::map<SpatialIndex::id_type, std::string> *id_tiles);
-bool process_input(struct query_op &stop, struct query_temp &sttemp,
-		const int join_idx, const int geom_idx, 
-		IStorageManager * &storage, ISpatialIndex * &spidx,
-		std::map<id_type, string> *id_tiles);
-
-
 // Initialize default values in spatial operator structure
 void init(struct query_op &stop, struct query_temp &sttemp) {
 	stop.extract_mbb = false;
@@ -243,6 +233,8 @@ int main(int argc, char **argv) {
 	struct query_op stop;
 	struct query_temp sttemp;
 	std::map<id_type, string> id_tiles;
+	
+	init(stop, sttemp);
 
 	if (!extract_params(argc, argv, stop, sttemp)) {
 #ifdef DEBUG 
