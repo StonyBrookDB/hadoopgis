@@ -14,6 +14,10 @@ st_dwithin, st_crosses, st_touches, st_contains, st_nearest, st_nearest2]." << e
 first dataset. Index value starts from 1." << endl;
 	cerr << TAB << "-j, --shpidx2"  << TAB << "The index of the geometry field from the second dataset.\
 Index value starts from 1." << endl;
+	cerr << TAB << "-a, --prefix1"  << TAB << "The path prefix of data set 1 (should be different from \
+the one of data set 2" << endl;
+	cerr << TAB << "-b, --prefix2"  << TAB << "The path prefix of data set 2 (should be different from \
+the one of data set 1." << endl;
 	cerr << TAB << "-d, --distance" << TAB << "Used together with st_dwithin predicate to \
 indicate the join distance or used together with st_nearest to indicate the max distance \
 to search for nearest neighbor. \
@@ -38,6 +42,10 @@ Indicate wheather to compute spherical distance for point-point on earth." << en
 used in partitioning (extracting MBB step)." << endl;
 	cerr << TAB << "-x, --extract" << TAB << "[Mapper only] \
 Mapper is used to extract MBBs only" << endl;
+	cerr << TAB << "-m, --mbbread" << TAB << "[Mapper only] \
+Mapper is reading MBBs" << endl;
+	cerr << TAB << "-h, --dropjoinidx" << TAB << "[Mapper only] \
+Mapper does not insert the join index after the tile ID field." << endl;
 	cerr << TAB << "-s, --collectstat" << TAB << "[Mapper only] \
 Mapper is used to collect statistics from MBB to determine space dimension" << endl;
 	cerr << TAB << "-f, --fields"   << TAB << "Optional. \
@@ -210,7 +218,6 @@ bool extract_params(int argc, char** argv, struct query_op &stop, struct query_t
 	stop.shape_idx_1 = 0;
 	stop.shape_idx_2 = 0 ;
 	stop.join_cardinality = 0;
-	stop.offset = 2; // default value for offset (used in resque)
 
 	stop.drop_join_idx = false;
 
@@ -275,7 +282,7 @@ bool extract_params(int argc, char** argv, struct query_op &stop, struct query_t
 	};
 
 	int c;
-	while ((c = getopt_long (argc, argv, "o:p:i:j:d:f:k:r:e:c:a:b:xmh", long_options, &option_index)) != -1){
+	while ((c = getopt_long (argc, argv, "o:p:i:j:d:f:k:r:e:c:a:b:xmhs", long_options, &option_index)) != -1){
 		switch (c)
 		{
 			case 0:
@@ -408,6 +415,13 @@ bool extract_params(int argc, char** argv, struct query_op &stop, struct query_t
 				stop.drop_join_idx = true;
 				#ifdef DEBUG
 					cerr << "Dropping join index " << stop.extract_mbb << endl;
+				#endif
+				break;
+				
+			case 's':
+				stop.collect_mbb_stat = true;
+				#ifdef DEBUG
+					cerr << "Mapper in collecting mbb statistics mode: " << stop.collect_mbb_stat << endl;
 				#endif
 				break;
 			/*
