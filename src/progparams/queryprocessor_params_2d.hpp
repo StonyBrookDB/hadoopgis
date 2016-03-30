@@ -31,15 +31,13 @@ bool extract_params(int argc, char **argv, struct framework_vars &fr_vars) {
 			("roughbucket", po::value<long>(&fr_vars.rough_bucket_size), "Rough level bucket size for partitioning")
 			("input1,a", po::value<string>(&fr_vars.input_path_1), "HDFS file path to data set 1")
 			("input2,b", po::value<string>(&fr_vars.input_path_2), "HDFS file path to data set 2")
-			("mbb1", po::value<string>(&fr_vars.mbb_path_1), "HDFS path to MBBs of data set 1")
-			("mbb2", po::value<string>(&fr_vars.mbb_path_2), "HDFS path to MBBs of data set 2")
 			("geom1,i", po::value<int>(&fr_vars.shp_idx_1), "Field number of data set 1 containing the geometry")
 			("geom2,j", po::value<int>(&fr_vars.shp_idx_2), "Field number of data set 2 containing the geometry")
+			("outputpath,h", po::value<string>(&fr_vars.output_path), "Output path")
 			("distance,d", po::value<double>(&fr_vars.distance), "Distance (used for certain predicates)")
 			("outputfields,f", po::value<string>(&fr_vars.output_fields), "Fields to be included in the final output \
 separated by commas. See the full documentation. Regular fields from datasets are in the format datasetnum:fieldnum, e.g. 1:1,2:3,1:14. \
 Field counting starts from 1. Optional statistics include: area1, area2, union, intersect, jaccard, dice, mindist")
-			("outputpath,h", po::value<string>(&fr_vars.output_path), "Output path")
 			("containfile", po::value<string>(&fr_vars.user_file), "User file containing window used for containment query")
 			("containrange", po::value<string>(&fr_vars.containment_window), "Comma separated list of window used for containemtn query")
 			("predicate,t", po::value<string>(&fr_vars.predicate), "Predicate for spatial join and nn queries \
@@ -50,6 +48,8 @@ Field counting starts from 1. Optional statistics include: area1, area2, union, 
 hc | str | bos | slc | qt ]")
 			("partitioner2,v", po::value<string>(&fr_vars.partition_method_2), "(Optional) Partitioning for \
 second method [fg | bsp | hc | str | bos | slc | qt ]")
+			("mbb1", po::value<string>(&fr_vars.mbb_path_1), "HDFS path to MBBs of data set 1")
+			("mbb2", po::value<string>(&fr_vars.mbb_path_2), "HDFS path to MBBs of data set 2")
 			("overwrite,o", "Overwrite existing hdfs directories") 
 			("parapartition,z", "Use 2 partitioning steps")
 			("numreducers,n", po::value<int>(&fr_vars.numreducers), "The number of reducers")

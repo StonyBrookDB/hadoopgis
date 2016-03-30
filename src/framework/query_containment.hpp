@@ -15,7 +15,7 @@ bool sp_containment(string programpath, vector<string> input_paths, string outpu
 	arr_args.push_back(fr_vars.output_path);
 
 	arr_args.push_back("-file");
-	arr_args.push_back(fr_vars.hadoopgis_prefix + CONTAINMENT_PROC);
+	arr_args.push_back(fr_vars.hadoopgis_prefix + RESQUE);
 	arr_args.push_back("-file");
 	string strtmp(cachefilefullpath);
 	arr_args.push_back(strtmp);
@@ -150,7 +150,7 @@ bool execute_containment(struct framework_vars &fr_vars) {
 			cerr << "Executing containment" << endl;
 			#endif
 			if (!sp_containment(fr_vars.hadoopcmdpath, input_paths, fr_vars.output_path, 
-				fr_vars.shared_params, fr_vars,
+				fr_vars.sharedparams, fr_vars,
 				tmpnameonly, tmpFile)) {
 				#ifdef DEBUG
 				cerr << "Containment failed." << endl;

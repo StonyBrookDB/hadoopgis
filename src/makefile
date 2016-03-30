@@ -27,7 +27,7 @@ CC = gcc
 CXX = g++
 
 all: queryprocessor_2d resque_2d manipulate_2d \
-	duplicate_remover containment_proc \
+	duplicate_remover \
 	combine_stat stats_extract_space_dims  \
 	hc_2d bsp_2d fg_2d bos_2d slc_2d qt_2d
 
