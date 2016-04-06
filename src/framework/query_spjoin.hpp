@@ -113,212 +113,210 @@ bool execute_spjoin(struct framework_vars &fr_vars) {
 			cerr << "Failed extracting MBB"  << endl;
 			exit(1);
 		}
+	}
 
-
-		char *tmpFile = mktemp(nametemplate);
-		int tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
-		char *tmpnameonly = strrchr(tmpFile, '/'); // pointing to just the name of the cache file
-		tmpnameonly++; // Advance the pointer past the slash delimiter character
+	char *tmpFile = mktemp(nametemplate);
+	int tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
+	char *tmpnameonly = strrchr(tmpFile, '/'); // pointing to just the name of the cache file
+	tmpnameonly++; // Advance the pointer past the slash delimiter character
 #ifdef DEBUG
-		cerr << "Temp file name only: " << tmpnameonly << endl;	
+	cerr << "Temp file name only: " << tmpnameonly << endl;	
 #endif
-		// Obtain the cache file from hdfs
-		bool res_cat = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.space_path, tmpfd);
-		close(tmpfd);
+	// Obtain the cache file from hdfs
+	bool res_cat = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.space_path, tmpfd);
+	close(tmpfd);
 
 #ifdef DEBUG
-		ifstream instr(tmpFile);
-		string dummystr;
-		if (instr.is_open()) {
-			instr >> dummystr
-				>> fr_vars.spinfo.space_low[0] >> fr_vars.spinfo.space_low[1] 
-				>> fr_vars.spinfo.space_high[0] >> fr_vars.spinfo.space_high[1]
-				>> fr_vars.spinfo.num_objects;
-			instr.close();
-		}
-		cerr << "Space dimensions: " << fr_vars.spinfo.space_low[0] << TAB 
-			<< fr_vars.spinfo.space_low[1] << TAB
-			<< fr_vars.spinfo.space_high[0] << TAB << fr_vars.spinfo.space_high[1] 
-			<< endl;
-		cerr << "Number objects: " << spinfo.num_objects << endl;
+	ifstream instr(tmpFile);
+	string dummystr;
+	if (instr.is_open()) {
+		instr >> dummystr
+			>> fr_vars.spinfo.space_low[0] >> fr_vars.spinfo.space_low[1] 
+			>> fr_vars.spinfo.space_high[0] >> fr_vars.spinfo.space_high[1]
+			>> fr_vars.spinfo.num_objects;
+		instr.close();
+	}
+	cerr << "Space dimensions: " << fr_vars.spinfo.space_low[0] << TAB 
+		<< fr_vars.spinfo.space_low[1] << TAB
+		<< fr_vars.spinfo.space_high[0] << TAB << fr_vars.spinfo.space_high[1] 
+		<< endl;
+	cerr << "Number objects: " << fr_vars.spinfo.num_objects << endl;
 #endif	
 
-		// Setting default block size if it has not been set
-		if (fr_vars.bucket_size < 0) {
-			// Bucket size was not set
-			double blockSize = 16000000; // approximately 16MB
-			fr_vars.bucket_size = max(static_cast<int>(floor(blockSize
-							/ fr_vars.spinfo.total_size * fr_vars.spinfo.num_objects)), 1);
-		}
+	// Setting default block size if it has not been set
+	if (fr_vars.bucket_size < 0) {
+		// Bucket size was not set
+		double blockSize = 16000000; // approximately 16MB
+		fr_vars.bucket_size = max(static_cast<int>(floor(blockSize
+						/ fr_vars.spinfo.total_size * fr_vars.spinfo.num_objects)), 1);
+	}
 
-		// 1st step of partition the data to generate tile boundaries
+	// 1st step of partition the data to generate tile boundaries
 #ifdef DEBUG
-		cerr << "Bucket size: " << fr_vars.bucket_size << endl;
-		cerr << "Sampling rate: " << fr_vars.sampling_rate << endl;
-		cerr << "\n\nPartitioning (1st step)\n" << endl;
+	cerr << "Bucket size: " << fr_vars.bucket_size << endl;
+	cerr << "Sampling rate: " << fr_vars.sampling_rate << endl;
+	cerr << "\n\nPartitioning (1st step)\n" << endl;
 #endif
-		if (!fr_vars.para_partition) {
-			fr_vars.rough_bucket_size = fr_vars.bucket_size;
-			if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath)) {
-#ifdef DEBUG
-				cerr << "\n\nPartitioning 2nd steps\n" << endl;
-#endif
-				if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
-							fr_vars.partitionpath, fr_vars.partition_method, fr_vars.bucket_size, 
-							fr_vars.sharedparams, 1, fr_vars.sampling_rate, fr_vars, tmpnameonly, tmpFile)) {
-					cerr << "Failed partitioning 1st step" << endl;
-					// Remove cache file
-					remove(tmpFile);
-					exit(1);
-				}
-			}
-		} else {
-			if (fr_vars.rough_bucket_size == -1) {
-				// Rough bucket size has not been set
-				if (fr_vars.numreducers > 0) {
-					fr_vars.rough_bucket_size = max(static_cast<int>(floor(fr_vars.spinfo.num_objects 
-									/ fr_vars.numreducers / 2)), 1);
-				} else {
-					fr_vars.rough_bucket_size = max(static_cast<int>(floor(fr_vars.spinfo.num_objects 
-									/ 2)), 1);
-				}	
-			}
-			cerr << "Rough bucket size: " << fr_vars.rough_bucket_size << endl;
-			if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath)) {
-#ifdef DEBUG
-				cerr << "\n\nPartitioning 1st step\n" << endl;
-#endif
-				if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
-							fr_vars.partitionpath, fr_vars.partition_method, fr_vars.rough_bucket_size, 
-							fr_vars.sharedparams, 1, fr_vars.sampling_rate, fr_vars, tmpnameonly, tmpFile)) {
-					cerr << "Failed partitioning 1st step" << endl;
-					// Remove cache file
-					remove(tmpFile);
-					exit(1);
-				}
-			}
-		}
-		// Obtain the cache file from hdfs
-		tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
-		bool res_partition = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.partitionpathout, tmpfd);
-		close(tmpfd);
-
-#ifdef DEBU
-		cerr << "Temp file name to hold partition boundary: " << tmpFile << endl;
-#endif
-
-		if (fr_vars.para_partition) {
-			// Second round of partitioning
+	if (!fr_vars.para_partition) {
+		fr_vars.rough_bucket_size = fr_vars.bucket_size;
+		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath)) {
 #ifdef DEBUG
 			cerr << "\n\nPartitioning 2nd steps\n" << endl;
 #endif
-			if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath2)) {
-				if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
-							fr_vars.partitionpath2, fr_vars.partition_method_2, fr_vars.bucket_size, 
-							fr_vars.sharedparams, 2, 1, fr_vars, tmpnameonly, tmpFile)) {
-					cerr << "Failed partitioning 2nd step" << endl;
-					// Remove cache file
-					remove(tmpFile);
-					exit(1);
-				}
-			}
-			// Update/Overwrite the tmp file	
-			tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
-			bool res_partition_2 = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.partitionpathout2, tmpfd);
-			close(tmpfd);
-
-		}
-
-		// tmpFile contains partition index
-#ifdef DEBUGSTAT
-		//string stat_path = output_path + "_stat";
-		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, stat_path)) {
-			if (!collect_stat(fr_vars.hadoopcmdpath, fr_vars.mbb_path, fr_vars.stat_path, 
-						fr_vars.sharedparams, tmpnameonly, tmpFile)) {
-				cerr << "Failed obtaining stats" << endl;
+			if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
+						fr_vars.partitionpath, fr_vars.partition_method, fr_vars.bucket_size, 
+						fr_vars.sharedparams, 1, fr_vars.sampling_rate, fr_vars, tmpnameonly, tmpFile)) {
+				cerr << "Failed partitioning 1st step" << endl;
 				// Remove cache file
 				remove(tmpFile);
 				exit(1);
 			}
 		}
-		cerr << "Done collecting tile counts" << endl;
+	} else {
+		if (fr_vars.rough_bucket_size == -1) {
+			// Rough bucket size has not been set
+			if (fr_vars.numreducers > 0) {
+				fr_vars.rough_bucket_size = max(static_cast<int>(floor(fr_vars.spinfo.num_objects 
+								/ fr_vars.numreducers / 2)), 1);
+			} else {
+				fr_vars.rough_bucket_size = max(static_cast<int>(floor(fr_vars.spinfo.num_objects 
+								/ 2)), 1);
+			}	
+		}
+		cerr << "Rough bucket size: " << fr_vars.rough_bucket_size << endl;
+		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath)) {
+#ifdef DEBUG
+			cerr << "\n\nPartitioning 1st step\n" << endl;
+#endif
+			if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
+						fr_vars.partitionpath, fr_vars.partition_method, fr_vars.rough_bucket_size, 
+						fr_vars.sharedparams, 1, fr_vars.sampling_rate, fr_vars, tmpnameonly, tmpFile)) {
+				cerr << "Failed partitioning 1st step" << endl;
+				// Remove cache file
+				remove(tmpFile);
+				exit(1);
+			}
+		}
+	}
+	// Obtain the cache file from hdfs
+	tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
+	bool res_partition = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.partitionpathout, tmpfd);
+	close(tmpfd);
 
-		// Overwrite the cache file
+#ifdef DEBU
+	cerr << "Temp file name to hold partition boundary: " << tmpFile << endl;
+#endif
+
+	if (fr_vars.para_partition) {
+		// Second round of partitioning
+#ifdef DEBUG
+		cerr << "\n\nPartitioning 2nd steps\n" << endl;
+#endif
+		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.partitionpath2)) {
+			if (!partition_data(fr_vars.hadoopcmdpath, fr_vars.mbb_path, 
+						fr_vars.partitionpath2, fr_vars.partition_method_2, fr_vars.bucket_size, 
+						fr_vars.sharedparams, 2, 1, fr_vars, tmpnameonly, tmpFile)) {
+				cerr << "Failed partitioning 2nd step" << endl;
+				// Remove cache file
+				remove(tmpFile);
+				exit(1);
+			}
+		}
+		// Update/Overwrite the tmp file	
 		tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
-		hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.statpathout, tmpfd);
+		bool res_partition_2 = hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.partitionpathout2, tmpfd);
 		close(tmpfd);
 
-		stringstream outputss;
-		outputss << (fr_vars.para_partition ? "true" : "false") << TAB 
-			<< fr_vars.partition_method << TAB
-			<< fr_vars.rough_bucket_size << TAB 
-			<< fr_vars.sampling_rate << TAB 
-			<< fr_vars.partition_method_2 << TAB
-			<< fr_vars.bucket_size << TAB
-			<< fr_vars.spinfo.num_objects << TAB;
-		post_process_stat(tmpFile, outputss);
-		cout << outputss.str() << endl;
+	}
+
+	// tmpFile contains partition index
+#ifdef DEBUGSTAT
+	//string stat_path = output_path + "_stat";
+	if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, stat_path)) {
+		if (!collect_stat(fr_vars.hadoopcmdpath, fr_vars.mbb_path, fr_vars.stat_path, 
+					fr_vars.sharedparams, tmpnameonly, tmpFile)) {
+			cerr << "Failed obtaining stats" << endl;
+			// Remove cache file
+			remove(tmpFile);
+			exit(1);
+		}
+	}
+	cerr << "Done collecting tile counts" << endl;
+
+	// Overwrite the cache file
+	tmpfd = open(tmpFile, O_RDWR | O_CREAT | O_TRUNC , 0777);
+	hdfs_cat(fr_vars.hadoopcmdpath, fr_vars.statpathout, tmpfd);
+	close(tmpfd);
+
+	stringstream outputss;
+	outputss << (fr_vars.para_partition ? "true" : "false") << TAB 
+		<< fr_vars.partition_method << TAB
+		<< fr_vars.rough_bucket_size << TAB 
+		<< fr_vars.sampling_rate << TAB 
+		<< fr_vars.partition_method_2 << TAB
+		<< fr_vars.bucket_size << TAB
+		<< fr_vars.spinfo.num_objects << TAB;
+	post_process_stat(tmpFile, outputss);
+	cout << outputss.str() << endl;
 
 #else
 
-		// Spatial join step
-		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.joinoutputpath)) {
+	// Spatial join step
+	if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.joinoutputpath)) {
 #ifdef DEBUG
-			cerr << "\n\nExecuting spatial joins\n" << endl;
+		cerr << "\n\nExecuting spatial joins\n" << endl;
 #endif
-			if (!sp_join(fr_vars.hadoopcmdpath, inputpaths, 
-						fr_vars.joinoutputpath, fr_vars.sharedparams, fr_vars, 
-						tmpnameonly, tmpFile)) {
-				cerr << "Failed spatial join" << endl;
-				// Remove cache file
-				remove(tmpFile);
-				exit(1);
-			}
+		if (!sp_join(fr_vars.hadoopcmdpath, inputpaths, 
+					fr_vars.joinoutputpath, fr_vars.sharedparams, fr_vars, 
+					tmpnameonly, tmpFile)) {
+			cerr << "Failed spatial join" << endl;
+			// Remove cache file
+			remove(tmpFile);
+			exit(1);
 		}
-		cerr << "Done with spatial join." << endl;
-		;
-		// Perform duplicate removal
+	}
+	cerr << "Done with spatial join." << endl;
+	;
+	// Perform duplicate removal
 
-		if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.output_path)) {
+	if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.output_path)) {
 #ifdef DEBUG
-			cerr << "\n\nBoundary object handling\n" << endl;
+		cerr << "\n\nBoundary object handling\n" << endl;
 #endif
-			if (!duplicate_removal(fr_vars.hadoopcmdpath, 
-						fr_vars.joinoutputpath, fr_vars.output_path, fr_vars)) {
-				cerr << "Failed boundary handling" << endl;
-				// Remove cache file
-				remove(tmpFile);
-				exit(1);
-			}
+		if (!duplicate_removal(fr_vars.hadoopcmdpath, 
+					fr_vars.joinoutputpath, fr_vars.output_path, fr_vars)) {
+			cerr << "Failed boundary handling" << endl;
+			// Remove cache file
+			remove(tmpFile);
+			exit(1);
 		}
-		cerr << "Done with boundary handling. Results are stored at "
-			<< fr_vars.output_path << endl;
+	}
+	cerr << "Done with boundary handling. Results are stored at "
+		<< fr_vars.output_path << endl;
 
 #endif
-		cerr << "Cleaning up/Removing temporary directories" << endl;
-		remove(tmpFile);
-		if (fr_vars.remove_tmp_dirs) {
-			hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.partitionpath);
-			if (fr_vars.para_partition) {
-				hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.partitionpath2);
-			}
-			hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.joinoutputpath);
+	cerr << "Cleaning up/Removing temporary directories" << endl;
+	remove(tmpFile);
+	if (fr_vars.remove_tmp_dirs) {
+		hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.partitionpath);
+		if (fr_vars.para_partition) {
+			hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.partitionpath2);
 		}
-		if (fr_vars.remove_tmp_mbb) {
-			hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.mbb_output);
+		hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.joinoutputpath);
+	}
+	if (fr_vars.remove_tmp_mbb) {
+		hdfs_delete(fr_vars.hadoopcmdpath, fr_vars.mbb_output);
 
-		}
+	}
 
 #ifdef DEBUGTIME
-		total_exec_time = clock() - total_exec_time;
-		cerr << "Total execution time: " 
-			<< (double) total_exec_time / CLOCKS_PER_SEC 
-			<< " seconds." << endl;
+	total_exec_time = clock() - total_exec_time;
+	cerr << "Total execution time: " 
+		<< (double) total_exec_time / CLOCKS_PER_SEC 
+		<< " seconds." << endl;
 #endif
 
-		cout.flush();
-		cerr.flush();
-		return true;
-	}
+	cout.flush();
+	cerr.flush();
 	return true;
 }

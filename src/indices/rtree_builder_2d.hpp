@@ -62,6 +62,7 @@ class GEOSDataStream : public SpatialIndex::IDataStream
 		if (inputColl->empty())
 			throw Tools::IllegalArgumentException("Input size is ZERO.");
 		shapes = inputColl;
+		m_id = 0;
 		len = inputColl->size();
 		iter = shapes->begin();
 		readNextEntry();
@@ -134,9 +135,9 @@ class GEOSDataStreamFileTile : public SpatialIndex::IDataStream
 		GEOSDataStreamFileTile(char *input_file, 
 			std::map<SpatialIndex::id_type, std::string> *id_tiles_ptr) : m_pNext(0)
 	{
-		m_fin.open(input_file);
 		id_tiles = id_tiles_ptr;
-
+		m_fin.open(input_file);
+		m_id = 0;
 		if (! m_fin)
 			throw Tools::IllegalArgumentException("Input file not found.");
 

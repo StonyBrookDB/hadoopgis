@@ -30,7 +30,7 @@ struct space_info {
 	double space_low[2];
 	double space_high[2];
 	double total_size;
-} spinfo;
+};
 
 
 // Manages piped I/O

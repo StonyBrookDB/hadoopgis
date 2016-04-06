@@ -230,6 +230,7 @@ bool extract_params(int argc, char** argv, struct query_op &stop, struct query_t
 	stop.needs_intersect = false;
 	stop.needs_dice = false;
 	stop.needs_jaccard = false;
+	stop.needs_min_distance = false;
 
 	stop.result_pair_duplicate = true;
 	stop.reading_mbb = false;

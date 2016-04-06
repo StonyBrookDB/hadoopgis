@@ -5,6 +5,7 @@ incbase=${HADOOPGIS_INC_PATH}
 
 builddir=../build/bin
 
+#OPTFLAGS	= -O0 -g
 OPTFLAGS	= -O2
 INCFLAGS	= -I $(incbase) -I ./
 LIBS		= -lgeos -lspatialindex -lboost_program_options -L $(libbase)
@@ -84,6 +85,8 @@ partition_vis: visualizer/partition_vis.cpp \
         common/tokenizer.h
         $(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
+discretize_cords: transform/discretize_cords.cpp 
+	$(CXX)  $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 install:
 	mkdir -p ${builddir}

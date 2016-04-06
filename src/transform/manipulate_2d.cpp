@@ -47,21 +47,24 @@ void init(struct query_op &stop, struct query_temp &sttemp) {
 bool process_input(struct query_op &stop, struct query_temp &sttemp,
 		const int join_idx, const int geom_idx, 
 		IStorageManager * &storage, ISpatialIndex * &spidx,
-		std::map<id_type, string> *id_tiles) {
+		std::map<id_type, string> * id_tiles) {
 	string input_line;
 	vector<string> fields;
 	bool firstLineRead = false;
 
 	Geometry* geom; 
-	GeometryFactory *gf = NULL;
-	WKTReader *wkt_reader = NULL;
+	PrecisionModel *pm;
+	GeometryFactory *gf;
+	WKTReader *wkt_reader;
+	
 	MyVisitor vis;
 
 	/* Space info */
 	double space_low[2];
 	double space_high[2];
 
-	gf = new GeometryFactory(new PrecisionModel(), 0);
+	pm = new PrecisionModel();
+	gf = new GeometryFactory(pm, 0);
 	wkt_reader= new WKTReader(gf);
 
 
@@ -123,6 +126,7 @@ bool process_input(struct query_op &stop, struct query_temp &sttemp,
 				low[1] = env->getMinY();
 				high[0] = env->getMaxX();
 				high[1] = env->getMaxY();
+				delete geom;
 			}
 			/* For extracting MBBs information */
 			if (stop.extract_mbb) {
@@ -199,9 +203,9 @@ bool process_input(struct query_op &stop, struct query_temp &sttemp,
 	}
 
 	/* Cleaning up memory */
-	delete gf;
 	delete wkt_reader;
-
+	delete gf;
+	delete pm;
 	#ifdef DEBUG
 	/* Output useful statistics */
 	cerr << "Number of processed objects: " << count_objects << endl;
@@ -233,7 +237,6 @@ int main(int argc, char **argv) {
 	struct query_op stop;
 	struct query_temp sttemp;
 	std::map<id_type, string> id_tiles;
-	
 	init(stop, sttemp);
 
 	if (!extract_params(argc, argv, stop, sttemp)) {
@@ -304,7 +307,7 @@ int main(int argc, char **argv) {
 	/* Clean up indices */
 	delete spidx;
 	delete storage;
-
+	cerr << "Tile contains" << id_tiles.size() << endl;
 	id_tiles.clear();
 
 	cout.flush();

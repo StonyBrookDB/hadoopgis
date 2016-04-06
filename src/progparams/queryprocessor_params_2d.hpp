@@ -115,7 +115,7 @@ second method [fg | bsp | hc | str | bos | slc | qt ]")
 				return 1;
 			}	
 		} else {
-			fr_vars.partition_method = PARTITION_BSP;
+			fr_vars.partition_method_2 = PARTITION_BSP;
 		}
 
 		if (vm.count("overwrite")) {
