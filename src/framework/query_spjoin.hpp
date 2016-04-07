@@ -29,8 +29,8 @@ bool sp_join(string programpath, vector<string> &input_paths,
 	arr_args.push_back(ss.str());
 
 	arr_args.push_back("-reducer");
-	//arr_args.push_back(RESQUE + " -o 2" + original_params); // Offset to account for tile id and join index
-	arr_args.push_back("cat");
+	arr_args.push_back(RESQUE + " -o 2" + original_params); // Offset to account for tile id and join index
+	//arr_args.push_back("cat");
 
 	arr_args.push_back("-numReduceTasks");
 	arr_args.push_back(fr_vars.numreducers_str);
