@@ -23,6 +23,11 @@ else
     OPTFLAGS += -DNDEBUGTIME
 endif
  
+ifdef BSP_BETA
+    BSP_FLAGS += -DBSP_BETA
+else
+    BSP_FLAGS += -DNBSP_BETA
+endif
    
 CC = gcc
 CXX = g++
@@ -66,7 +71,7 @@ bos_2d: partitionalgo/bos/bos_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 bsp_2d: partitionalgo/bsp/bsp_2d.cpp
-	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+	$(CXX) -std=c++0x $< $(BSP_FLAGS) $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 hc_2d: partitionalgo/sfc/hc_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
@@ -78,15 +83,13 @@ str_2d: partitionalgo/str/str_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 sampler: partitioner/sampler.cpp
-        $(CXX) -std=c++0x $< $(INCFLAGS) $(OPTFLAGS) -o ${builddir}/$@
+	$(CXX) -std=c++0x $< $(INCFLAGS) $(OPTFLAGS) -o ${builddir}/$@
 
-partition_vis: visualizer/partition_vis.cpp \
-        common/Timer.hpp \
-        common/tokenizer.h
-        $(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+partition_vis: visualizer/partition_vis.cpp
+	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
-discretize_cords: transform/discretize_cords.cpp 
-	$(CXX)  $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+discretize_cords: transform/discretize_cords.cpp
+	$(CXX) -std=c++0x  $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 install:
 	mkdir -p ${builddir}

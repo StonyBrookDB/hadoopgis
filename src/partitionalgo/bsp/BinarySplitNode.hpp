@@ -136,6 +136,18 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 			// Here we heuristically select the direction generating partitions 
 			//   with more similar areas
 			
+			#ifndef BSP_BETA
+			if ( high[0] - low[0] < high[1] - low[1]) {
+				// True == splitting along y generates a more balanced partition
+				first = new BinarySplitNode(low[0], low[1], high[0], median[1], level + 1);
+				second = new BinarySplitNode(low[0], median[1], high[0], high[1], level + 1);
+			
+			} else {
+				first = new BinarySplitNode(low[0], low[1],  median[0], high[1], level + 1);
+				second = new BinarySplitNode(median[0], low[1], high[0], high[1], level + 1);
+			}
+
+			#else
 			if ( (high[0] - median[0]) * (median[0] - low[0]) / pow(high[0] - low[0], 2)
 			 <  (high[1] - median[1]) * (median[1] - low[1]) / pow(high[1] - low[1], 2)) {
 				// True == splitting along y generates a more balanced partition
@@ -146,6 +158,8 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 				first = new BinarySplitNode(low[0], low[1],  median[0], high[1], level + 1);
 				second = new BinarySplitNode(median[0], low[1], high[0], high[1], level + 1);
 			}
+
+			#endif
 			isLeaf = false;
 			/* Split the node */
 

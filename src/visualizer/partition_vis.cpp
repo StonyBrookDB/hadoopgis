@@ -12,9 +12,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/fcntl.h>
-#include "../common/string_constants.h"
-#include "../common/tokenizer.h"
-#include "../common/Timer.hpp"
+#include <progparams/string_constants.h>
+#include <utilities/tokenizer.h>
+#include <utilities/Timer.hpp>
 #include <boost/program_options.hpp>
 
 /* 
@@ -27,6 +27,7 @@ namespace po = boost::program_options;
 
 // main method
 int main(int ac, char** av) {
+	cout.precision(20);
 	string partidx_file;
 	string obj_file;
 	string space_file;
@@ -148,7 +149,11 @@ partition boundaries in MBB format. Partition boundaries have random colors.")
 		ofs << "plot [" << global_low[0] << ":" << global_high[0] << "] "
 			<< "[" << global_low[1] << ":" << global_high[1] << "] "
 			<< "NaN notitle" << endl;
-	
+		#ifdef DEBUG
+		cerr << ofs.str();
+		#endif
+
+
 		// Create a new process to run gnuplot
 		pipe(pipefd);
 		if ((childpid = fork()) == -1) {
