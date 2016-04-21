@@ -14,7 +14,7 @@ void init_params(struct framework_vars &fr_vars) {
 	fr_vars.bucket_size = -1;
 	fr_vars.para_partition = false;
 	fr_vars.rough_bucket_size = -1;
-
+	fr_vars.knn = 1;
 	fr_vars.overwritepath = false;
 }
 
@@ -35,6 +35,8 @@ bool extract_params(int argc, char **argv, struct framework_vars &fr_vars) {
 			("geom2,j", po::value<int>(&fr_vars.shp_idx_2), "Field number of data set 2 containing the geometry")
 			("outputpath,h", po::value<string>(&fr_vars.output_path), "Output path")
 			("distance,d", po::value<double>(&fr_vars.distance), "Distance (used for certain predicates)")
+			("knn,k", po::value<int>(&fr_vars.knn), "The number of nearest neighbor. \
+Only used in conjuction with the st_nearest or st_nearest2 predicate")
 			("outputfields,f", po::value<string>(&fr_vars.output_fields), "Fields to be included in the final output \
 separated by commas. See the full documentation. Regular fields from datasets are in the format datasetnum:fieldnum, e.g. 1:1,2:3,1:14. \
 Field counting starts from 1. Optional statistics include: area1, area2, union, intersect, jaccard, dice, mindist")

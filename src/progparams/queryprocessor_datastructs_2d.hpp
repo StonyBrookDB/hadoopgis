@@ -63,6 +63,7 @@ struct framework_vars {
 	bool loaded_1;
 	bool loaded_2;
 	int join_cardinality;
+	int knn; // k in nearest neighbor
 	std::string sharedparams;
 	
 	// Query variables

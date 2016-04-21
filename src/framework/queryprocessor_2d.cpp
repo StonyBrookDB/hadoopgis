@@ -13,6 +13,8 @@ int main(int argc, char** argv) {
 	cout.precision(20);
 	struct framework_vars fr_vars;
 
+	/* Initialize default values */
+	fr_vars.numreducers = 10;
 	init_params(fr_vars);
 
 	if (!extract_params(argc, argv, fr_vars)) {
@@ -28,8 +30,6 @@ int main(int argc, char** argv) {
 	total_exec_time = clock();
 	#endif
 
-	/* Initialize default values */
-	fr_vars.numreducers = 10;
 
 	/////////////////////////////////////////////
 	/* Process query */

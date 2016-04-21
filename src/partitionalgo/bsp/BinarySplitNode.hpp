@@ -5,7 +5,7 @@
 
 SpatialObject::SpatialObject(double min_x, double min_y, double max_x, double max_y) {
 	low[0] = min_x;
-	low[1] = min_y,
+	low[1] = min_y;
 	high[0] = max_x;
 	high[1] = max_y;
 }
@@ -13,14 +13,14 @@ SpatialObject::SpatialObject(double min_x, double min_y, double max_x, double ma
 BinarySplitNode::BinarySplitNode(double min_x, double min_y,
 		double max_x, double max_y, int _level) {
 	low[0] = min_x;
-	low[1] = min_y,
+	low[1] = min_y;
 	high[0] = max_x;
 	high[1] = max_y;
 	level = _level;
 	isLeaf = true;
 	canBeSplit = true;
 	size = 0;
-		//    leafNodeList.push_back(this);
+	//    leafNodeList.push_back(this);
 }
 
 BinarySplitNode::~BinarySplitNode() {
@@ -32,10 +32,10 @@ bool BinarySplitNode::addObjectIgnore(SpatialObject *object) {
 	objectList.push_back(object);
 
 	/*
-	if (size > bucket_size) {
+	   if (size > bucket_size) {
 	   canBeSplit = false;
-	}
-	*/
+	   }
+	   */
 	return true;
 }
 
@@ -53,12 +53,12 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 
 		if (size > bucket_size && canBeSplit) {
 			//if (level >= GLOBAL_MAX_LEVEL) {
-				//canBeSplit = false;
-				//return false;
+			//canBeSplit = false;
+			//return false;
 			//}
-			#ifdef DEBUG
-	                cerr << "Splitting" << endl;
-			#endif
+#ifdef DEBUG
+			cerr << "Splitting" << endl;
+#endif
 			// Replaced by code below		
 			// double *xList = new double[size];
 			// double *yList = new double[size];
@@ -81,46 +81,46 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 				cordLists[1].push_back(tmp_y);
 			}
 
-			#ifdef DEBUG
+#ifdef DEBUG
 			//cerr << "Done inserting to vec: " << cordLists[0].size() << " " << cordLists[1].size() << endl;
-			#endif
+#endif
 
 			sort(cordLists[0].begin(), cordLists[0].end());
 			sort(cordLists[1].begin(), cordLists[1].end());
 			if (size % 2 == 0) {
 				/* The following code is not safe - generating seg fault due to imprecision
-				nth_element(cordLists[0].begin(), 
-					cordLists[0].begin() + size / 2 - 1,
-					 cordLists[0].end());
-				nth_element(cordLists[0].begin(), 
-					cordLists[0].begin() + size / 2,
-					 cordLists[0].end());
-				nth_element(cordLists[1].begin(), 
-					cordLists[1].begin() + size / 2 - 1,
-					 cordLists[0].end());
-				nth_element(cordLists[0].begin(), 
-					cordLists[1].begin() + size / 2,
-					 cordLists[1].end());
-				*/
+				   nth_element(cordLists[0].begin(), 
+				   cordLists[0].begin() + size / 2 - 1,
+				   cordLists[0].end());
+				   nth_element(cordLists[0].begin(), 
+				   cordLists[0].begin() + size / 2,
+				   cordLists[0].end());
+				   nth_element(cordLists[1].begin(), 
+				   cordLists[1].begin() + size / 2 - 1,
+				   cordLists[0].end());
+				   nth_element(cordLists[0].begin(), 
+				   cordLists[1].begin() + size / 2,
+				   cordLists[1].end());
+				   */
 				median[0] = (cordLists[0][size / 2] + cordLists[0][size / 2 - 1]) / 2;
 				median[1] = (cordLists[1][size / 2] + cordLists[1][size / 2 - 1]) / 2;
 			} else {
 				// Odd number of elements
 				/* The following code is not safe - generating seg fault due to imprecision
-				nth_element(cordLists[0].begin(), 
-					cordLists[0].begin() + size / 2,
-					 cordLists[0].end());
-				nth_element(cordLists[1].begin(), 
-					cordLists[1].begin() + size / 2,
-					 cordLists[1].end());
-				*/
+				   nth_element(cordLists[0].begin(), 
+				   cordLists[0].begin() + size / 2,
+				   cordLists[0].end());
+				   nth_element(cordLists[1].begin(), 
+				   cordLists[1].begin() + size / 2,
+				   cordLists[1].end());
+				   */
 				median[0] = cordLists[0][size / 2];
 				median[1] = cordLists[1][size / 2];
 
 			}
-			#ifdef DEBUG
+#ifdef DEBUG
 			cerr << "Median x: " << median[0] << TAB << " median y: " << median[1] << endl;
-			#endif
+#endif
 
 			for (int k = 0; k < 2 ; k++) {
 				if (median[k] <= low[k]) {
@@ -135,31 +135,31 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 			/* Choose which direction to split */
 			// Here we heuristically select the direction generating partitions 
 			//   with more similar areas
-			
-			#ifndef BSP_BETA
+
+#ifndef BSP_BETA
 			if ( high[0] - low[0] < high[1] - low[1]) {
 				// True == splitting along y generates a more balanced partition
 				first = new BinarySplitNode(low[0], low[1], high[0], median[1], level + 1);
 				second = new BinarySplitNode(low[0], median[1], high[0], high[1], level + 1);
-			
+
 			} else {
 				first = new BinarySplitNode(low[0], low[1],  median[0], high[1], level + 1);
 				second = new BinarySplitNode(median[0], low[1], high[0], high[1], level + 1);
 			}
 
-			#else
+#else
 			if ( (high[0] - median[0]) * (median[0] - low[0]) / pow(high[0] - low[0], 2)
-			 <  (high[1] - median[1]) * (median[1] - low[1]) / pow(high[1] - low[1], 2)) {
+					<  (high[1] - median[1]) * (median[1] - low[1]) / pow(high[1] - low[1], 2)) {
 				// True == splitting along y generates a more balanced partition
 				first = new BinarySplitNode(low[0], low[1], high[0], median[1], level + 1);
 				second = new BinarySplitNode(low[0], median[1], high[0], high[1], level + 1);
-			
+
 			} else {
 				first = new BinarySplitNode(low[0], low[1],  median[0], high[1], level + 1);
 				second = new BinarySplitNode(median[0], low[1], high[0], high[1], level + 1);
 			}
 
-			#endif
+#endif
 			isLeaf = false;
 			/* Split the node */
 
@@ -186,23 +186,23 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 
 			}
 
-			#ifdef DEBUG
+#ifdef DEBUG
 			cerr << "Sizes: " << first->size << " " << second->size << endl;
-			#endif
-			
+#endif
+
 			//if (!first->canBeSplit && !second->canBeSplit) {
 			if (first->size + second->size > 2 * (size - 1)) {
 				isLeaf = true;
 				canBeSplit = false;
-				#ifdef DEBUG
+#ifdef DEBUG
 				cerr << "Fail in finding good split point" << endl;
-				#endif
+#endif
 				delete first;
 				delete second;
 			} else {
-				#ifdef DEBUG
+#ifdef DEBUG
 				cerr << "Succeed in splitting";
-				#endif
+#endif
 				leafNodeList.push_back(first);
 				leafNodeList.push_back(second);
 				objectList.clear();
@@ -216,21 +216,21 @@ bool BinarySplitNode::addObject(SpatialObject *object) {
 		   objectList.clear();
 		   }*/
 
-	} else {
+		} else {
 
-		if (first->intersects(object)) {
-			first->addObject(object);
-		}
-		if (second->intersects(object)) {
-			second->addObject(object);
-		}
+			if (first->intersects(object)) {
+				first->addObject(object);
+			}
+			if (second->intersects(object)) {
+				second->addObject(object);
+			}
 	}
 	return true;
 }
 
 
-/* Check if the node MBB intersects with the object MBB */
+	/* Check if the node MBB intersects with the object MBB */
 bool BinarySplitNode::intersects(SpatialObject *object) {
 	return !(object->low[0] > high[0] || object->high[0] < low[0]
-		|| object->high[1] < low[1] || object->low[1] > high[1]);
+				|| object->high[1] < low[1] || object->low[1] > high[1]);
 }
