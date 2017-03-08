@@ -82,7 +82,7 @@ slc_2d: partitionalgo/slc/slc_2d.cpp
 str_2d: partitionalgo/str/str_2d.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
-sampler: partitioner/sampler.cpp
+sampler: transform/sampler.cpp
 	$(CXX) -std=c++0x $< $(INCFLAGS) $(OPTFLAGS) -o ${builddir}/$@
 
 partition_vis: visualizer/partition_vis.cpp
