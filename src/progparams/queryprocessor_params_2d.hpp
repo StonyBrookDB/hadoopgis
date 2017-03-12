@@ -63,7 +63,7 @@ second method [fg | bsp | hc | str | bos | slc | qt ]")
 		po::notify(vm);   
 		if (vm.count("help") || !vm.count("querytype") ) {
 			cerr << desc << endl;
-			return 0;
+			return false;
 		}
 
 		if (vm.count("input2")) {
@@ -100,7 +100,7 @@ second method [fg | bsp | hc | str | bos | slc | qt ]")
 				&& fr_vars.partition_method != PARTITION_QT	
 				&& fr_vars.partition_method != PARTITION_STR) {
 				cerr << "Invalid partitioner. Run --help" << endl;
-				return 1;
+				return false;
 			}	
 		} else {
 			fr_vars.partition_method = PARTITION_BSP;
@@ -114,7 +114,7 @@ second method [fg | bsp | hc | str | bos | slc | qt ]")
 				&& fr_vars.partition_method_2 != PARTITION_QT	
 				&& fr_vars.partition_method_2 != PARTITION_STR) {
 				cerr << "Invalid partitioner for step 2. Run --help" << endl;
-				return 1;
+				return false;
 			}	
 		} else {
 			fr_vars.partition_method_2 = PARTITION_BSP;
@@ -131,7 +131,7 @@ second method [fg | bsp | hc | str | bos | slc | qt ]")
 				fr_vars.containment_use_file = false;	
 			} else {
 				cerr << "Missing range information for query. Run --help" << endl;
-				return 1;
+				return false;
 			}
 		}
 
