@@ -325,7 +325,8 @@ bool partition_data(string programpath, string input_path,
 
 
 bool collect_stat(string programpath, string input_path, string output_path, 
-	char *cachefilename, char *cachefilefullpath, struct framework_vars &fr_vars) {
+	string sharedparams, struct framework_vars &fr_vars, 
+	char *cachefilename, char *cachefilefullpath) {
 	hdfs_delete(programpath, output_path);
 	stringstream ss;
 	vector<string> arr_args = {"hadoop", "jar", fr_vars.streaming_path};
@@ -349,7 +350,7 @@ bool collect_stat(string programpath, string input_path, string output_path,
 
 	arr_args.push_back("-mapper");
 	ss.str("");
-	ss << STAT_COLLECT_MAPPER << " -o 1 " << fr_vars.sharedparams 
+	ss << STAT_COLLECT_MAPPER << " -o 1 " << sharedparams
 			<< " -c " << cachefilename;
 	arr_args.push_back(ss.str());
 

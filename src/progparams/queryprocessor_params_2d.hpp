@@ -26,7 +26,7 @@ bool extract_params(int argc, char **argv, struct framework_vars &fr_vars) {
 		desc.add_options()
 			("help", "This help message")
 			("querytype,q", po::value<string>(&fr_vars.query_type), "Query type [ partition | contaiment | spjoin]")
-			("bucket,p", po::value<long>(&fr_vars.bucket_size), "Fine-grain level tile size for spjoin")
+			("bucket,t", po::value<long>(&fr_vars.bucket_size), "Fine-grain level tile size for spjoin")
 			("blocksize", po::value<long>(&fr_vars.block_size), "Fine-grain level bucket size for partitioning (loading data)")
 			("roughbucket", po::value<long>(&fr_vars.rough_bucket_size), "Rough level bucket size for partitioning")
 			("input1,a", po::value<string>(&fr_vars.input_path_1), "HDFS file path to data set 1")
@@ -42,7 +42,7 @@ separated by commas. See the full documentation. Regular fields from datasets ar
 Field counting starts from 1. Optional statistics include: area1, area2, union, intersect, jaccard, dice, mindist")
 			("containfile", po::value<string>(&fr_vars.user_file), "User file containing window used for containment query")
 			("containrange", po::value<string>(&fr_vars.containment_window), "Comma separated list of window used for containemtn query")
-			("predicate,t", po::value<string>(&fr_vars.predicate), "Predicate for spatial join and nn queries \
+			("predicate,p", po::value<string>(&fr_vars.predicate), "Predicate for spatial join and nn queries \
 [ st_intersects | st_touches | st_crosses | st_contains | st_adjacent | st_disjoint \
 | st_equals | st_dwithin | st_within | st_overlaps | st_nearest | st_nearest2 ] ")
 			("samplingrate,s", po::value<double>(&fr_vars.sampling_rate), "Sampling rate (0, 1]") 

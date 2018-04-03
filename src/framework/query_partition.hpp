@@ -227,7 +227,8 @@ bool execute_partition(struct framework_vars &fr_vars) {
 	//string stat_path = output_path + "_stat";
 	if (fr_vars.overwritepath || !hdfs_check_data(fr_vars.hadoopcmdpath, fr_vars.stat_path)) {
 		if (!collect_stat(fr_vars.hadoopcmdpath, fr_vars.mbb_path, fr_vars.stat_path, 
-					fr_vars.sharedparams, tmpnameonly, tmpFile)) {
+					fr_vars.sharedparams, fr_vars,  tmpnameonly, tmpFile)) {
+				//	fr_vars.sharedparams, tmpnameonly, tmpFile)) {
 			cerr << "Failed obtaining stats" << endl;
 			// Remove cache file
 			remove(tmpFile);

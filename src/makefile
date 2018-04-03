@@ -22,6 +22,12 @@ ifdef DEBUGTIME
 else
     OPTFLAGS += -DNDEBUGTIME
 endif
+
+ifdef DEBUGSTAT
+    OPTFLAGS += -DDEBUGSTAT
+else
+    OPTFLAGS += -DNDEBUGSTAT
+endif
  
 ifdef BSP_BETA
     BSP_FLAGS += -DBSP_BETA
@@ -90,6 +96,9 @@ partition_vis: visualizer/partition_vis.cpp
 
 discretize_cords: transform/discretize_cords.cpp
 	$(CXX) -std=c++0x  $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
+
+compute_area_polygon: utilities/compute_area_polygon.cpp
+	$(CXX)  $< $(INCFLAGS) $(LIBS) $(OPTFLAGS) -o ${builddir}/$@
 
 install:
 	mkdir -p ${builddir}
