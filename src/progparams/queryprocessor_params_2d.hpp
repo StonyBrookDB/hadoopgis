@@ -46,10 +46,10 @@ Field counting starts from 1. Optional statistics include: area1, area2, union, 
 [ st_intersects | st_touches | st_crosses | st_contains | st_adjacent | st_disjoint \
 | st_equals | st_dwithin | st_within | st_overlaps | st_nearest | st_nearest2 ] ")
 			("samplingrate,s", po::value<double>(&fr_vars.sampling_rate), "Sampling rate (0, 1]") 
-			("partitioner,u", po::value<string>(&fr_vars.partition_method), "Partitioning method ([fg | bsp \
-hc | str | bos | slc | qt ]")
+			("partitioner,u", po::value<string>(&fr_vars.partition_method), "Partitioning method ([fg_2d | bsp_2d \
+| hc_2d | str_2d | bos_2d | slc_2d | qt_2d ]")
 			("partitioner2,v", po::value<string>(&fr_vars.partition_method_2), "(Optional) Partitioning for \
-second method [fg | bsp | hc | str | bos | slc | qt ]")
+second method [fg_2d | bsp_2d | hc_2d | str_2d | bos_2d | slc_2d | qt_2d ]")
 			("mbb1", po::value<string>(&fr_vars.mbb_path_1), "HDFS path to MBBs of data set 1")
 			("mbb2", po::value<string>(&fr_vars.mbb_path_2), "HDFS path to MBBs of data set 2")
 			("overwrite,o", "Overwrite existing hdfs directories") 
